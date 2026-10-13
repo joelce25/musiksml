@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://tu-backend-musiksml.onrender.com/api/:path*"
+      "destination": "https://musiksml-production.up.railway.app/api/:path*"
     }
   ]
 }
