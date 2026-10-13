@@ -1,0 +1,7 @@
+server.py
+requirements.txt
+Dockerfile
+downloads/
+__pycache__/
+*.pyc
+.env
