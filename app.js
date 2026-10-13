@@ -1,11 +1,61 @@
 document.addEventListener('DOMContentLoaded', () => {
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:8000'
-  : 'https://musiksml-production.up.railway.app';
+  const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000'
+    : 'https://musiksml-production.up.railway.app';
 
   const FALLBACK_COVER = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80';
+  const STORAGE_KEY = 'musiksml_persistent_state_v1';
+
+  const defaultCrate = [
+    {
+      id: 'c1',
+      title: 'Quevedo: Bzrp Music Sessions, Vol. 52',
+      artist: 'Bizarrap & Quevedo',
+      genre: 'Electrónica / Club',
+      bpm: 128,
+      key: '8A',
+      source: 'Spotify',
+      search_query: 'Bizarrap Quevedo Vol 52 official audio',
+      thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/1c/96/80/1c968098-6f4b-531e-c586-97b0a5e965d4/196626945068.jpg/600x600bb.jpg'
+    },
+    {
+      id: 'c2',
+      title: 'Losing It',
+      artist: 'FISHER',
+      genre: 'Tech House',
+      bpm: 125,
+      key: '9A',
+      source: 'YouTube',
+      search_query: 'FISHER Losing It audio',
+      thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/9b/19/62/9b1962a4-f728-043c-1402-6c7a7c667f9d/00602567892410.rgb.jpg/600x600bb.jpg'
+    },
+    {
+      id: 'c3',
+      title: 'LOKERA',
+      artist: 'Rauw Alejandro, Lyanno & Brray',
+      genre: 'Reggaeton / Urbano',
+      bpm: 102,
+      key: '5A',
+      source: 'Spotify',
+      search_query: 'Rauw Alejandro Lokera official audio',
+      thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/0f/10/98/0f1098a3-3c3d-a217-4209-64a17fb9d4c2/196589186782.jpg/600x600bb.jpg'
+    },
+    {
+      id: 'c4',
+      title: 'Titanium (feat. Sia)',
+      artist: 'David Guetta',
+      genre: 'Pop / Dance',
+      bpm: 126,
+      key: '8B',
+      source: 'YouTube',
+      search_query: 'David Guetta Titanium official audio',
+      thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/3c/0b/7e/3c0b7e9d-1a16-0f82-e2a3-2539d9f3590f/5099909735156.jpg/600x600bb.jpg'
+    }
+  ];
 
   const state = {
+    lastUrl: '',
+    extractedTitle: 'Resultados',
     extractedTracks: [],
     playlistSearchQuery: '',
     activeSort: 'smart-mix',
@@ -15,54 +65,44 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
     bpmMax: null,
     playingId: null,
     tapTimestamps: [],
-
-    crate: [
-      {
-        id: 'c1',
-        title: 'Quevedo: Bzrp Music Sessions, Vol. 52',
-        artist: 'Bizarrap & Quevedo',
-        genre: 'Electrónica / Club',
-        bpm: 128,
-        key: '8A',
-        source: 'Spotify',
-        search_query: 'Bizarrap Quevedo Vol 52 official audio',
-        thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/1c/96/80/1c968098-6f4b-531e-c586-97b0a5e965d4/196626945068.jpg/600x600bb.jpg'
-      },
-      {
-        id: 'c2',
-        title: 'Losing It',
-        artist: 'FISHER',
-        genre: 'Tech House',
-        bpm: 125,
-        key: '9A',
-        source: 'YouTube',
-        search_query: 'FISHER Losing It audio',
-        thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/9b/19/62/9b1962a4-f728-043c-1402-6c7a7c667f9d/00602567892410.rgb.jpg/600x600bb.jpg'
-      },
-      {
-        id: 'c3',
-        title: 'LOKERA',
-        artist: 'Rauw Alejandro, Lyanno & Brray',
-        genre: 'Reggaeton / Urbano',
-        bpm: 102,
-        key: '5A',
-        source: 'Spotify',
-        search_query: 'Rauw Alejandro Lokera official audio',
-        thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/0f/10/98/0f1098a3-3c3d-a217-4209-64a17fb9d4c2/196589186782.jpg/600x600bb.jpg'
-      },
-      {
-        id: 'c4',
-        title: 'Titanium (feat. Sia)',
-        artist: 'David Guetta',
-        genre: 'Pop / Dance',
-        bpm: 126,
-        key: '8B',
-        source: 'YouTube',
-        search_query: 'David Guetta Titanium official audio',
-        thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/3c/0b/7e/3c0b7e9d-1a16-0f82-e2a3-2539d9f3590f/5099909735156.jpg/600x600bb.jpg'
-      }
-    ]
+    crate: defaultCrate
   };
+
+  // =========================================================
+  // SISTEMA DE GUARDADO AUTOMÁTICO EN LOCALSTORAGE
+  // =========================================================
+  function saveStateToStorage() {
+    try {
+      // No guardamos blobs temporales locales porque caducan al cerrar pestaña
+      const cleanCrate = state.crate.map(t => ({
+        ...t,
+        localBlobUrl: null
+      }));
+      const payload = {
+        lastUrl: state.lastUrl,
+        extractedTitle: state.extractedTitle,
+        extractedTracks: state.extractedTracks,
+        activeSort: state.activeSort,
+        crate: cleanCrate
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (_) {}
+  }
+
+  function loadStateFromStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (Array.isArray(saved.crate)) state.crate = saved.crate;
+      if (Array.isArray(saved.extractedTracks)) state.extractedTracks = saved.extractedTracks;
+      if (saved.extractedTitle) state.extractedTitle = saved.extractedTitle;
+      if (saved.lastUrl) state.lastUrl = saved.lastUrl;
+      if (saved.activeSort) state.activeSort = saved.activeSort;
+    } catch (_) {}
+  }
+
+  loadStateFromStorage();
 
   // =========================================================
   // 1. NAVEGACIÓN ENTRE VISTAS
@@ -93,12 +133,13 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
   });
 
   function updateCrateCounter() {
-    document.getElementById('crate-counter').textContent = state.crate.length;
+    const el = document.getElementById('crate-counter');
+    if (el) el.textContent = state.crate.length;
   }
   updateCrateCounter();
 
   // =========================================================
-  // 2. ANALIZAR ENLACES (PLAYLISTS COMPLETAS + PORTADAS EN SEGUNDO PLANO)
+  // 2. ANALIZAR ENLACES Y RESTAURAR PLAYLIST GUARDADA
   // =========================================================
   const urlForm = document.getElementById('url-form');
   const urlInput = document.getElementById('url-input');
@@ -107,6 +148,17 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
   const extractedGrid = document.getElementById('extracted-grid');
   const playlistSearchInput = document.getElementById('playlist-search-input');
   const clearPlSearchBtn = document.getElementById('btn-clear-pl-search');
+
+  // Restaurar link y playlist si ya había una guardada antes de salir de la página
+  if (urlInput && state.lastUrl) {
+    urlInput.value = state.lastUrl;
+  }
+  if (state.extractedTracks.length > 0) {
+    document.getElementById('extracted-title').textContent = state.extractedTitle;
+    extractedSection?.classList.remove('hidden');
+    renderExtractedCards();
+    hydrateMissingArtworks();
+  }
 
   urlForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -129,6 +181,8 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
       }
 
       const data = await res.json();
+      state.lastUrl = url;
+      state.extractedTitle = data.title || 'Pistas encontradas';
       state.extractedTracks = (data.tracks || []).map((t, i) => ({
         ...t,
         _origIndex: i
@@ -137,12 +191,12 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
       if (playlistSearchInput) playlistSearchInput.value = '';
       clearPlSearchBtn?.classList.add('hidden');
 
-      document.getElementById('extracted-title').textContent = data.title || 'Pistas encontradas';
+      document.getElementById('extracted-title').textContent = state.extractedTitle;
       extractedSection.classList.remove('hidden');
       renderExtractedCards();
-      toast(`Se reconocieron ${state.extractedTracks.length} pistas en total.`);
+      saveStateToStorage();
+      toast(`Se reconocieron y guardaron ${state.extractedTracks.length} pistas.`);
 
-      // Cargar automáticamente las portadas que falten en segundo plano
       hydrateMissingArtworks();
     } catch (err) {
       toast(`Error: ${err.message}`);
@@ -152,7 +206,6 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
     }
   });
 
-  // Buscador en vivo dentro de la playlist importada (para tus 148+ canciones)
   playlistSearchInput?.addEventListener('input', (e) => {
     state.playlistSearchQuery = e.target.value;
     clearPlSearchBtn?.classList.toggle('hidden', !state.playlistSearchQuery);
@@ -167,6 +220,7 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
   });
 
   function renderExtractedCards() {
+    if (!extractedGrid) return;
     extractedGrid.innerHTML = '';
     const q = state.playlistSearchQuery.trim().toLowerCase();
 
@@ -187,8 +241,8 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
         : `${state.extractedTracks.length} pistas`;
     }
 
-    filtered.forEach((track) => {
-      const idx = track._origIndex;
+    filtered.forEach((track, i) => {
+      const idx = track._origIndex !== undefined ? track._origIndex : i;
       const cover = track.thumbnail || FALLBACK_COVER;
       const card = document.createElement('div');
       card.className = 'track-card';
@@ -241,15 +295,15 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
         const track = state.extractedTracks[Number(btn.dataset.saveIdx)];
         if (track) {
           addTrackToCrate(track);
-          toast(`"${track.title}" añadida a tu Biblioteca.`);
+          toast(`"${track.title}" guardada en tu Biblioteca.`);
         }
       });
     });
   }
 
-  // Busca automáticamente la portada oficial de iTunes/Deezer para las canciones que no traigan imagen
   async function hydrateMissingArtworks() {
     const missing = state.extractedTracks.filter(t => !t.thumbnail);
+    if (!missing.length) return;
     const concurrency = 4;
     let cursor = 0;
 
@@ -274,6 +328,7 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
     const workers = [];
     for (let i = 0; i < concurrency; i++) workers.push(worker());
     await Promise.all(workers);
+    saveStateToStorage();
   }
 
   function buildMediaUrl(track, mode = 'download') {
@@ -316,12 +371,13 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
       ? state.extractedTracks.filter(t => t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q))
       : state.extractedTracks;
 
-    listToSave.forEach(t => addTrackToCrate(t));
-    toast(`${listToSave.length} pistas añadidas a la Biblioteca.`);
+    listToSave.forEach(t => addTrackToCrate(t, false));
+    saveStateToStorage();
+    toast(`${listToSave.length} pistas guardadas en tu Biblioteca.`);
     switchView('view-crate');
   });
 
-  function addTrackToCrate(t) {
+  function addTrackToCrate(t, saveImmediately = true) {
     state.crate.push({
       id: 'tr_' + Date.now() + Math.random().toString(36).slice(2, 6),
       title: t.title,
@@ -336,6 +392,7 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
       localBlobUrl: t.localBlobUrl || null
     });
     updateCrateCounter();
+    if (saveImmediately) saveStateToStorage();
   }
 
   // =========================================================
@@ -392,13 +449,14 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
         state.crate = route;
       }
     }
+    saveStateToStorage();
     renderCrateTable();
   }
 
   document.querySelectorAll('.seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       applySorting(btn.dataset.sort);
-      toast(`Lista ordenada por: ${btn.textContent.trim()}`);
+      toast(`Lista ordenada y guardada: ${btn.textContent.trim()}`);
     });
   });
 
@@ -505,6 +563,7 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
         const moved = state.crate.splice(draggedRowIndex, 1)[0];
         state.crate.splice(i, 0, moved);
         draggedRowIndex = null;
+        saveStateToStorage();
         renderCrateTable();
       });
 
@@ -516,6 +575,7 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
         const t = state.crate.find(x => x.id === inp.dataset.bpmId);
         if (t) {
           t.bpm = Number(inp.value) || 120;
+          saveStateToStorage();
           renderCrateTable();
         }
       });
@@ -539,6 +599,7 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
       btn.addEventListener('click', () => {
         state.crate = state.crate.filter(x => x.id !== btn.dataset.delId);
         updateCrateCounter();
+        saveStateToStorage();
         renderCrateTable();
       });
     });
@@ -558,7 +619,7 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
   });
 
   // =========================================================
-  // 4. ANÁLISIS REAL DE MP3 LOCAL CON LIBROSA EN EL SERVIDOR PYTHON
+  // 4. ANÁLISIS REAL DE MP3 LOCAL CON LIBROSA
   // =========================================================
   document.getElementById('local-audio-input')?.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
@@ -593,7 +654,6 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
         }
       } catch (_) {}
 
-      // También buscarle su portada si el nombre del archivo tiene Artista - Canción
       let cover = FALLBACK_COVER;
       try {
         const artRes = await fetch(`${API_BASE}/api/artwork?q=${encodeURIComponent(cleanName)}`);
@@ -619,6 +679,7 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
     if (titleEl) titleEl.textContent = 'Analizar MP3 locales';
     if (subEl) subEl.textContent = 'Detectar BPM y Tono real (DSP)';
     updateCrateCounter();
+    saveStateToStorage();
     toast(`Análisis DSP completado para ${files.length} archivo(s).`);
     switchView('view-crate');
   });
@@ -674,7 +735,7 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
   document.getElementById('btn-apply-smart-order')?.addEventListener('click', () => {
     applySorting('smart-mix');
     switchView('view-crate');
-    toast('Orden inteligente aplicado a tu Biblioteca.');
+    toast('Orden inteligente aplicado y guardado.');
   });
 
   // =========================================================

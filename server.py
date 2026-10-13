@@ -53,6 +53,42 @@ app.add_middleware(
 
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
+def get_ydl_base_opts() -> dict:
+    """
+    Opciones anti-bot para servidores Cloud (Railway/Render):
+    1. Usa clientes internos (tv_embedded / ios / android_vr) para saltar el bloqueo de IP de centro de datos.
+    2. Si existe la variable YOUTUBE_COOKIES en Railway o cookies.txt, la inyecta automáticamente.
+    """
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "nocheckcertificate": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["tv_embedded", "ios", "android_vr", "mweb"],
+                "player_skip": ["webpage", "configs"]
+            }
+        },
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        }
+    }
+
+    # Si configuraste YOUTUBE_COOKIES en la pestaña Variables de Railway
+    raw_cookies = os.getenv("YOUTUBE_COOKIES", "").strip()
+    cookie_file = Path("cookies.txt")
+
+    if raw_cookies:
+        try:
+            cookie_file.write_text(raw_cookies, encoding="utf-8")
+            opts["cookiefile"] = str(cookie_file)
+        except Exception:
+            pass
+    elif cookie_file.exists():
+        opts["cookiefile"] = str(cookie_file)
+
+    return opts
 
 download_locks = {}
 artwork_cache = {}
@@ -545,7 +581,10 @@ def get_or_download_audio(
     lock = get_track_lock(target)
     with lock:
         try:
-            with yt_dlp.YoutubeDL({"quiet": True, "noplaylist": True}) as ydl_info:
+            info_opts = get_ydl_base_opts()
+            info_opts["noplaylist"] = True
+
+            with yt_dlp.YoutubeDL(info_opts) as ydl_info:
                 info = ydl_info.extract_info(target, download=False)
                 if "entries" in info:
                     info = info["entries"][0]
@@ -566,13 +605,13 @@ def get_or_download_audio(
 
             if not final_path or not final_path.exists():
                 out_tmpl = str(DOWNLOAD_DIR / "%(title).75B [%(id)s].%(ext)s")
-                ydl_opts = {
+                ydl_opts = get_ydl_base_opts()
+                ydl_opts.update({
                     "format": "bestaudio/best",
                     "outtmpl": out_tmpl,
                     "noplaylist": True,
-                    "quiet": True,
                     "overwrites": False,
-                }
+                })
                 if FFMPEG_PATH:
                     ydl_opts["ffmpeg_location"] = FFMPEG_PATH
                     ydl_opts["postprocessors"] = [{
