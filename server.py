@@ -593,27 +593,28 @@ def get_or_download_audio(
                 if not info:
                     raise HTTPException(status_code=404, detail="No se obtuvo respuesta de YouTube.")
 
-                # Protección contra listas vacías (evita el error 'list index out of range')
                 if "entries" in info:
                     entries = [e for e in info.get("entries", []) if e]
                     if not entries:
-                        # Reintento con búsqueda limpia si falló la primera consulta
                         clean_q = re.sub(r"[^\w\s]", " ", query or target).strip()
                         fallback_target = f"ytsearch1:{clean_q}"
                         fallback_info = ydl_info.extract_info(fallback_target, download=False)
                         entries = [e for e in fallback_info.get("entries", []) if e] if fallback_info else []
 
                     if not entries:
-                        raise HTTPException(status_code=404, detail="No se encontró ningún video en YouTube para este audio.")
+                        raise HTTPException(status_code=404, detail="No se encontró ningún video en YouTube.")
                     info = entries[0]
 
                 vid_id = info.get("id", "audio")
                 raw_title = info.get("title", "track")
 
-            existing_mp3 = list(DOWNLOAD_DIR.glob(f"*[{vid_id}].mp3"))
+            # ==========================================================
+            # CORRECCIÓN: Búsqueda exacta del ID para evitar a Bad Bunny
+            # ==========================================================
+            existing_mp3 = [f for f in DOWNLOAD_DIR.glob("*.mp3") if f"[{vid_id}]" in f.name]
             existing_any = [
-                f for f in DOWNLOAD_DIR.glob(f"*[{vid_id}].*")
-                if not f.name.endswith(".part") and not f.name.endswith(".ytdl")
+                f for f in DOWNLOAD_DIR.iterdir()
+                if f.is_file() and f"[{vid_id}]" in f.name and not f.name.endswith(".part") and not f.name.endswith(".ytdl")
             ]
 
             final_path = None
@@ -642,9 +643,10 @@ def get_or_download_audio(
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     ydl.download([info.get("webpage_url") or f"https://www.youtube.com/watch?v={vid_id}"])
 
+                # Verificamos de nuevo de forma estricta para agarrar la canción correcta
                 matches = [
-                    f for f in DOWNLOAD_DIR.glob(f"*[{vid_id}]*")
-                    if not f.name.endswith(".part") and not f.name.endswith(".ytdl")
+                    f for f in DOWNLOAD_DIR.iterdir()
+                    if f.is_file() and f"[{vid_id}]" in f.name and not f.name.endswith(".part") and not f.name.endswith(".ytdl")
                 ]
                 if not matches:
                     raise HTTPException(status_code=500, detail="No se encontró el archivo procesado.")
