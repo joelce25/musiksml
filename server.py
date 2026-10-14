@@ -87,25 +87,32 @@ def get_ydl_base_opts() -> dict:
     }
 
     # Verificar cookies de YouTube
-    cookies_file = os.getenv("YOUTUBE_COOKIES_FILE", "").strip()
+    cookies_b64 = os.getenv("YOUTUBE_COOKIES_B64", "").strip()
 
-    if cookies_file:
-        if Path(cookies_file).is_file():
+    if cookies_b64:
+        cookies_path = Path("/tmp/musiksml-youtube-cookies.txt")
+
+        if not cookies_path.is_file():
+            cookies_data = base64.b64decode(
+                cookies_b64,
+                validate=True
+            )
+            cookies_path.write_bytes(cookies_data)
+            cookies_path.chmod(0o600)
+
+        opts["cookiefile"] = str(cookies_path)
+        print("[MusiksML] Cookies cargadas desde Railway.")
+
+    else:
+        cookies_file = os.getenv(
+            "YOUTUBE_COOKIES_FILE", ""
+        ).strip()
+
+        if cookies_file and Path(cookies_file).is_file():
             opts["cookiefile"] = cookies_file
             print("[MusiksML] Archivo de cookies encontrado.")
         else:
-            print("[MusiksML] ADVERTENCIA: No existe el archivo de cookies configurado.")
-    else:
-        print("[MusiksML] No se configuró un archivo de cookies.")
-
-    # Configurar proxy de Webshare
-    proxy_url = os.getenv("YOUTUBE_PROXY", "").strip()
-
-    if proxy_url:
-        opts["proxy"] = proxy_url
-        print("[MusiksML] Proxy configurado.")
-    else:
-        print("[MusiksML] Proxy no configurado.")
+            print("[MusiksML] No se encontraron cookies.")
 
     return opts
 
