@@ -71,11 +71,6 @@ def get_ydl_base_opts() -> dict:
         "no_warnings": True,
         "retries": 3,
         "fragment_retries": 3,
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android", "web", "mweb"]
-            }
-        },
         "http_headers": {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
