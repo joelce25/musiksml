@@ -1,378 +1,557 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#08090d" />
-  <title>musiksml • Audio &amp; Automix</title>
-  <!-- Favicon SVG para que nunca salga el icono gris generico en la pestaña -->
-  <link
-    rel="icon"
-    id="dynamicFavicon"
-    type="image/svg+xml"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230b0d14'/%3E%3Crect x='4' y='4' width='56' height='56' rx='13' fill='none' stroke='%2310b981' stroke-width='2' stroke-opacity='0.35'/%3E%3Crect x='13' y='26' width='6' height='12' rx='3' fill='%2310b981'/%3E%3Crect x='23' y='16' width='6' height='32' rx='3' fill='%2306b6d4'/%3E%3Crect x='33' y='22' width='6' height='20' rx='3' fill='%23f4f6fb'/%3E%3Crect x='43' y='12' width='6' height='40' rx='3' fill='%2310b981'/%3E%3C/svg%3E"
-  />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div class="ambient-backdrop" id="ambientGlow"></div>
-
-  <div class="app-layout">
-    <!-- SIDEBAR / NAVEGACIÓN -->
-    <aside class="sidebar">
-      <div class="brand-box" id="brandHome" title="Ir al inicio">
-        <div class="logo-animated" id="animatedLogo">
-          <span class="eq-bar b1"></span>
-          <span class="eq-bar b2"></span>
-          <span class="eq-bar b3"></span>
-          <span class="eq-bar b4"></span>
-        </div>
-        <div class="brand-titles">
-          <span class="brand-main">musiksml</span>
-        </div>
-      </div>
-
-      <nav class="side-nav" aria-label="Principal">
-        <button class="side-link active" data-view="importView">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          <span>Importar</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#f6f5f1" />
+    <meta
+      name="description"
+      content="Tu música, a tu manera. Importa tus playlists, organiza tu biblioteca y crea una mezcla continua con musiksml."
+    />
+    <title>musiksml — Tu música, sin pausas.</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='14' fill='%23272725'/%3E%3Cpath d='M12 28v-8m8 15V13m8 18V17m8 8v-2' stroke='%23ff875f' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <link
+      rel="preload"
+      href="assets/fonts/manrope-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Saltar al contenido</a>
+    <header class="site-header">
+      <button class="brand" data-view="homeView" aria-label="musiksml, inicio">
+        <span class="brand-mark" aria-hidden="true"
+          ><i></i><i></i><i></i><i></i></span
+        ><span>musiksml<span class="brand-dot">.</span></span>
+      </button>
+      <nav class="main-nav" aria-label="Navegación principal">
+        <button
+          class="nav-link active"
+          data-view="homeView"
+          aria-current="page"
+        >
+          Inicio
         </button>
-
-        <button class="side-link" data-view="libraryView">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-          </svg>
-          <span>Biblioteca</span>
-          <span class="side-badge" id="libCountBadge">0</span>
+        <button class="nav-link" data-view="importView">Importar</button>
+        <button class="nav-link" data-view="libraryView">
+          Biblioteca <span class="nav-count" id="libCountBadge">0</span>
         </button>
-
-        <button class="side-link" data-view="mixView">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M2 12h4l3-8 4 16 3-8h6"/>
-          </svg>
-          <span>Automix</span>
-          <span class="side-badge live" id="queueCountBadge">0</span>
+        <button class="nav-link" data-view="mixView">
+          Estudio <span class="nav-count" id="queueCountBadge">0</span>
         </button>
       </nav>
+      <button class="upload-button" id="uploadTopBtn">
+        <span aria-hidden="true">＋</span
+        ><span class="upload-label">Añadir audio</span>
+      </button>
+      <input type="file" id="localFileInput" accept="audio/*" multiple hidden />
+    </header>
 
-      <!-- CONTROL DE TRANSICIÓN CONTINUA -->
-      <div class="xfade-panel">
-        <div class="xfade-row">
-          <span class="xfade-title">Crossfade Automix</span>
-          <span class="xfade-val" id="crossfadeLabel">6s</span>
-        </div>
-        <input type="range" id="crossfadeSlider" min="0" max="12" step="1" value="6" class="xfade-slider" />
-        <div class="xfade-labels">
-          <span>Corte</span>
-          <span>Suave (6s)</span>
-          <span>Club (12s)</span>
-        </div>
-      </div>
-    </aside>
-
-    <!-- CONTENEDOR PRINCIPAL -->
-    <main class="main-stage" id="mainScrollArea">
-      <!-- BARRA SUPERIOR -->
-      <header class="top-header">
-        <div class="mobile-brand" id="mobileBrandHome">
-          <div class="logo-animated sm">
-            <span class="eq-bar b1"></span>
-            <span class="eq-bar b2"></span>
-            <span class="eq-bar b3"></span>
-            <span class="eq-bar b4"></span>
-          </div>
-          <span>musiksml</span>
-        </div>
-
-        <div class="search-bar-wrap">
-          <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="7"/>
-            <path d="M20 20l-3.5-3.5"/>
-          </svg>
-          <input
-            type="text"
-            id="globalFilterInput"
-            placeholder="Buscar canción, artista, Salsa, Trap, BPM o clave (8A)..."
-            autocomplete="off"
-          />
-          <button id="clearSearchBtn" class="search-clear hidden" aria-label="Limpiar">&times;</button>
-        </div>
-
-        <div class="header-right">
-          <label for="localFileInput" class="btn-local-upload">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-            <span>MP3 Local</span>
-          </label>
-          <input type="file" id="localFileInput" accept="audio/*" multiple hidden />
-        </div>
-      </header>
-
-      <!-- =========================================================
-           VISTA 1: IMPORTAR & DESCARGAR (PRINCIPAL)
-           ========================================================= -->
-      <section id="importView" class="view-section active">
-        <div class="importer-card">
-          <div class="importer-top">
-            <div>
-              <h1 class="importer-title">Importar canción o playlist</h1>
-              <p class="importer-desc">Compatible con enlaces de Spotify y YouTube. Extracción directa en 320kbps con detección de género, BPM y clave armónica.</p>
-            </div>
-          </div>
-
-          <form id="importForm" class="importer-form" autocomplete="off">
-            <div class="url-field-box">
-              <svg class="url-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-              </svg>
-              <!-- type="text" + inputmode="url" permite pegar sin bloqueos en cualquier navegador móvil -->
-              <input
-                type="text"
-                inputmode="url"
-                id="urlInput"
-                placeholder="Pega aquí tu link de Spotify o YouTube..."
-                autocapitalize="off"
-                autocorrect="off"
-                spellcheck="false"
-                required
-              />
-              <button type="button" id="clearUrlBtn" class="url-clear-btn hidden" title="Borrar texto">&times;</button>
-              <button type="button" id="pasteClipboardBtn" class="url-paste-btn">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                </svg>
-                <span>Pegar</span>
+    <main id="main" tabindex="-1">
+      <section id="homeView" class="view active" aria-labelledby="homeTitle">
+        <div class="hero">
+          <div class="hero-copy">
+            <span class="eyebrow"
+              ><span class="tiny-disc" aria-hidden="true"></span> UN ESPACIO
+              PARA TU MÚSICA</span
+            >
+            <h1 id="homeTitle">
+              El siguiente tema.<br /><span>La misma vibra.</span>
+            </h1>
+            <p>
+              Las canciones que te gustan, conectadas como nunca. Trae tu
+              playlist y haz que la música siga.
+            </p>
+            <div class="hero-actions">
+              <button class="button primary" data-view="importView">
+                Traer mi música
+                <span aria-hidden="true"
+                  ><svg
+                    class="inline-icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="M7 17 17 7M7 7h10v10" /></svg
+                ></span></button
+              ><button class="text-button" data-view="mixView">
+                Explorar el estudio <span aria-hidden="true">→</span>
               </button>
             </div>
+            <div class="hero-footnote">
+              <span>Spotify & YouTube</span><i></i
+              ><span>Tus archivos de audio</span>
+            </div>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="art-caption">
+              <span>LA MÚSICA NO SE DETIENE</span><span>01 / ∞</span>
+            </div>
+            <div class="record-sleeve">
+              <div class="sleeve-type">
+                good<br />things<br /><em>flow.</em>
+              </div>
+              <span class="sleeve-bottom">musiksml / listening sessions</span>
+            </div>
+            <div class="vinyl">
+              <div class="vinyl-label">
+                <span>m.</span><i></i><small>SIDE A • KEEP GOING</small>
+              </div>
+            </div>
+            <div class="floating-note">
+              <span class="note-icon">↝</span>
+              <div>
+                <strong>Una transición. Otra sensación.</strong
+                ><span>De tu playlist a tu propia sesión.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="home-divider">
+          <span>MENOS BOTONES. MÁS MÚSICA.</span
+          ><span class="scroll-cue">Descubre tu próximo mix ↓</span>
+        </div>
+        <div class="feature-strip">
+          <button class="feature" data-view="importView">
+            <span class="feature-number">01</span>
+            <div>
+              <h2>Trae tus favoritas.</h2>
+              <p>Un enlace o tus archivos. Todo empieza aquí.</p>
+            </div>
+            <span class="feature-arrow"
+              ><svg class="inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 17 17 7M7 7h10v10" /></svg
+            ></span>
+          </button>
+          <button class="feature" data-view="libraryView">
+            <span class="feature-number">02</span>
+            <div>
+              <h2>Una colección tuya.</h2>
+              <p>Playlists guardadas. Siempre a mano.</p>
+            </div>
+            <span class="feature-arrow"
+              ><svg class="inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 17 17 7M7 7h10v10" /></svg
+            ></span>
+          </button>
+          <button class="feature" data-view="mixView">
+            <span class="feature-number">03</span>
+            <div>
+              <h2>Encuentra tu flow.</h2>
+              <p>Ordena, escucha y crea una sola mezcla.</p>
+            </div>
+            <span class="feature-arrow"
+              ><svg class="inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 17 17 7M7 7h10v10" /></svg
+            ></span>
+          </button>
+        </div>
+        <div class="home-return hidden" id="homeReturn">
+          <div>
+            <span class="eyebrow">TU ÚLTIMA IMPORTACIÓN</span>
+            <h2 id="homeImportTitle"></h2>
+          </div>
+          <button class="button secondary" data-view="importView">
+            Volver a mi playlist →
+          </button>
+        </div>
+        <footer class="page-footer">
+          <span>Hecho para escuchar. Diseñado para sentir.</span
+          ><span>musiksml studio</span>
+        </footer>
+      </section>
 
-            <button type="submit" id="analyzeBtn" class="btn-extract">
-              <span id="analyzeBtnText">Analizar Link</span>
-              <span class="spinner-ring hidden" id="analyzeSpinner"></span>
+      <section
+        id="importView"
+        class="view"
+        aria-labelledby="importTitle"
+        hidden
+      >
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">01 / TU PUNTO DE PARTIDA</span>
+            <h1 id="importTitle">
+              Toda tu música.<br /><span>Un solo lugar.</span>
+            </h1>
+            <p>
+              Trae una canción, una playlist o ese archivo que nunca dejas de
+              escuchar.
+            </p>
+          </div>
+          <span class="section-symbol" aria-hidden="true">↙</span>
+        </div>
+        <div class="import-panel">
+          <div class="panel-heading">
+            <span class="step-pill">ENLACE</span><span>Spotify o YouTube</span>
+          </div>
+          <form id="importForm">
+            <label class="sr-only" for="urlInput"
+              >Enlace de canción o playlist de Spotify o YouTube</label
+            >
+            <div class="url-field">
+              <span aria-hidden="true"
+                ><svg
+                  class="inline-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M7 17 17 7M7 7h10v10" /></svg></span
+              ><input
+                id="urlInput"
+                type="url"
+                inputmode="url"
+                placeholder="Pega el enlace de tu canción o playlist"
+                autocomplete="off"
+                spellcheck="false"
+                required
+              /><button
+                type="button"
+                class="text-button"
+                id="pasteClipboardBtn"
+              >
+                Pegar
+              </button>
+            </div>
+            <button class="button primary" id="analyzeBtn" type="submit">
+              <span id="analyzeBtnText">Importar música</span
+              ><span
+                id="analyzeSpinner"
+                class="spinner hidden"
+                aria-hidden="true"
+              ></span
+              ><span aria-hidden="true">→</span>
             </button>
           </form>
-
-          <div id="importStatusBanner" class="status-msg hidden"></div>
+          <div class="import-panel-footer">
+            <span>Tu última importación se conserva al cambiar de vista.</span
+            ><button class="text-button" id="uploadImportBtn">
+              Elegir archivos locales
+              <svg class="inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 17 17 7M7 7h10v10" />
+              </svg>
+            </button>
+          </div>
+          <p id="importStatusBanner" class="status hidden" role="status"></p>
         </div>
-
-        <!-- RESUMEN DE PLAYLIST CARGADA -->
         <div class="playlist-showcase hidden" id="playlistShowcase">
-          <div class="showcase-cover-wrap">
-            <img id="showcaseCover" src="" alt="Portada" class="showcase-cover" />
+          <div id="showcaseCover" class="collection-art" aria-hidden="true">
+            <span>m.</span>
           </div>
           <div class="showcase-info">
-            <span class="showcase-kicker" id="showcaseSourceTag">PLAYLIST IMPORTADA</span>
-            <h2 class="showcase-title" id="currentImportTitle">Pistas cargadas</h2>
-            <div class="showcase-stats" id="showcaseStatsRow">
-              <span id="importTrackCount">0 pistas</span>
-            </div>
+            <span class="eyebrow" id="showcaseSourceTag">TU PLAYLIST</span>
+            <h2 id="currentImportTitle">Tu importación</h2>
+            <p id="showcaseStatsRow"></p>
+            <span class="saved-hint" id="importSavedHint"></span>
           </div>
           <div class="showcase-actions">
-            <button class="act-btn" id="saveAllToLibBtn" disabled>
-              + Guardar en Biblioteca
-            </button>
-            <button class="act-btn" id="sendAllToMixBtn" disabled>
-              Enviar a Automix
-            </button>
-            <button class="act-btn primary" id="downloadBatchBtn" disabled>
-              Descargar Todo (MP3)
+            <button class="button primary" id="saveAllToLibBtn">
+              Guardar playlist <span aria-hidden="true">＋</span></button
+            ><button class="button secondary" id="sendAllToMixBtn">
+              Crear un mix
+              <svg class="inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 17 17 7M7 7h10v10" />
+              </svg></button
+            ><button class="text-button" id="downloadBatchBtn">
+              Descargar canciones
             </button>
           </div>
         </div>
-
-        <!-- LISTA DE TARJETAS DE PISTAS -->
-        <div id="importedTracksContainer" class="cards-list"></div>
+        <div class="list-toolbar hidden" id="importToolbar">
+          <h2>Las canciones</h2>
+          <span class="muted">BPM y tonalidad de enlaces son orientativos</span>
+        </div>
+        <div id="importedTracksContainer" class="track-list"></div>
       </section>
 
-      <!-- =========================================================
-           VISTA 2: MI BIBLIOTECA MEJORADA (CRATES + STATS)
-           ========================================================= -->
-      <section id="libraryView" class="view-section">
-        <!-- DASHBOARD DE COLECCIÓN -->
-        <div class="lib-stats-grid">
-          <div class="stat-tile">
-            <span class="stat-label">PISTAS GUARDADAS</span>
-            <strong class="stat-value" id="statTotalTracks">0</strong>
+      <section
+        id="libraryView"
+        class="view"
+        aria-labelledby="libraryTitle"
+        hidden
+      >
+        <div class="page-heading compact">
+          <div>
+            <span class="eyebrow">02 / TU COLECCIÓN</span>
+            <h1 id="libraryTitle">
+              Siempre vuelves<br /><span>a una buena canción.</span>
+            </h1>
+            <p id="librarySummary">Tu música, guardada en este navegador.</p>
           </div>
-          <div class="stat-tile">
-            <span class="stat-label">TEMPO PROMEDIO</span>
-            <strong class="stat-value" id="statAvgBpm">-- BPM</strong>
-          </div>
-          <div class="stat-tile">
-            <span class="stat-label">ESTILO PRINCIPAL</span>
-            <strong class="stat-value" id="statTopGenre">—</strong>
-          </div>
-          <div class="stat-tile accent">
-            <span class="stat-label">COMPATIBLES AHORA</span>
-            <strong class="stat-value" id="statCompatibleNow">0</strong>
-          </div>
+          <button class="button secondary" data-view="importView">
+            Añadir música ＋
+          </button>
         </div>
-
-        <!-- CONTROLES Y FILTROS RÁPIDOS DE BIBLIOTECA -->
-        <div class="lib-toolbar">
-          <div class="lib-filters">
-            <button class="act-btn harmonic-pill" id="harmonicMatchToggleBtn">
-              <span class="led-dot"></span>
-              <span>Compatibles con pista actual</span>
-            </button>
-
-            <select id="genreFilterSelect" class="ctrl-select">
-              <option value="ALL">Todos los géneros</option>
-            </select>
-
-            <select id="sortLibrarySelect" class="ctrl-select">
-              <option value="recent">Más recientes</option>
-              <option value="bpm-asc">BPM (Menor a Mayor)</option>
-              <option value="bpm-desc">BPM (Mayor a Menor)</option>
-              <option value="key">Clave Camelot</option>
-              <option value="title">Alfabético (A - Z)</option>
-            </select>
+        <div class="library-playlists" id="libraryPlaylists"></div>
+        <div class="library-toolbar">
+          <div class="segmented">
+            <button id="allLibraryBtn" class="active">
+              Todas las canciones</button
+            ><button id="favoritesBtn">Favoritas</button>
           </div>
-
-          <div class="lib-right-tools">
-            <div class="view-Mode-switch">
-              <button class="mode-btn active" id="viewListBtn" title="Vista de Tarjetas">Lista</button>
-              <button class="mode-btn" id="viewGridBtn" title="Vista de Cuadrícula">Portadas</button>
-            </div>
-            <button class="act-btn danger" id="clearLibraryBtn">Vaciar</button>
-          </div>
+          <label class="search-field"
+            ><span aria-hidden="true">⌕</span
+            ><input
+              id="librarySearch"
+              type="search"
+              placeholder="Buscar canción o artista"
+              aria-label="Buscar en biblioteca" /></label
+          ><select id="sortLibrarySelect" aria-label="Ordenar biblioteca">
+            <option value="recent">Recientes</option>
+            <option value="title">Nombre</option>
+            <option value="bpm">Tempo</option>
+          </select>
         </div>
-
-        <!-- CHIPS DE GÉNERO INTERACTIVOS -->
-        <div class="genre-pills-bar" id="libraryGenreChips"></div>
-
-        <div id="libraryTracksContainer" class="cards-list"></div>
-      </section>
-
-      <!-- =========================================================
-           VISTA 3: AUTOMIX STUDIO
-           ========================================================= -->
-      <section id="mixView" class="view-section">
-        <div class="automix-console">
-          <div class="deck-box" id="deckCardA">
-            <div class="deck-top">
-              <span class="deck-label">SONANDO • DECK A</span>
-              <span class="deck-meta-pill" id="deckAMetrics">-- BPM • --</span>
-            </div>
-            <div class="deck-song" id="deckATitle">Sin pista activa</div>
-            <div class="deck-artist" id="deckAMeta">Dale Play a cualquier pista</div>
-          </div>
-
-          <div class="xfade-visualizer">
-            <span class="compat-chip" id="bridgeCompatibilityBadge">AUTOMIX READY</span>
-            <svg class="curve-svg" viewBox="0 0 180 44" preserveAspectRatio="none">
-              <path d="M 0 6 C 75 6, 105 38, 180 38" stroke="#10b981" stroke-width="2.2" fill="none"/>
-              <path d="M 0 38 C 75 38, 105 6, 180 6" stroke="#06b6d4" stroke-width="2.2" fill="none"/>
+        <div class="library-selection hidden" id="librarySelection">
+          <button class="text-button" id="backAllBtn">
+            ← Todas las canciones
+          </button>
+          <h2 id="selectedPlaylistTitle"></h2>
+          <button class="button secondary" id="mixPlaylistBtn">
+            Llevar al estudio
+            <svg class="inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 17 17 7M7 7h10v10" />
             </svg>
-            <div class="xfade-bar-bg">
-              <div class="xfade-bar-fill" id="bridgeProgressFill"></div>
+          </button>
+        </div>
+        <div id="libraryTracksContainer" class="track-list"></div>
+      </section>
+
+      <section id="mixView" class="view" aria-labelledby="mixTitle" hidden>
+        <div class="page-heading compact">
+          <div>
+            <span class="eyebrow">03 / TU SESIÓN</span>
+            <h1 id="mixTitle">Que todo<br /><span>fluya a tu manera.</span></h1>
+            <p>Elige el orden. Ajusta los fragmentos. Une tus canciones.</p>
+          </div>
+          <button class="button secondary" data-view="libraryView">
+            Añadir desde biblioteca ＋
+          </button>
+        </div>
+        <div class="studio-console">
+          <div class="studio-top">
+            <span class="studio-wordmark">musiksml <span>studio</span></span
+            ><span class="studio-status" id="studioStatus"
+              ><i></i>LISTO PARA ESCUCHAR</span
+            >
+          </div>
+          <div class="decks">
+            <div class="deck">
+              <span class="deck-caption">A <span>AHORA</span></span>
+              <div class="deck-record" id="deckArtA" aria-hidden="true">
+                <span>m.</span>
+              </div>
+              <h2 id="deckATitle">Tu primera canción</h2>
+              <p id="deckAMeta">Añade música a la sesión</p>
+              <span class="deck-metrics" id="deckAMetrics">— BPM · —</span>
+            </div>
+            <div class="mix-center">
+              <div class="flow-mark" aria-hidden="true">↝</div>
+              <span id="bridgeCompatibilityBadge">A TU RITMO</span>
+              <div class="transition-meter">
+                <div id="bridgeProgressFill"></div>
+              </div>
+              <button
+                class="studio-play"
+                id="startMixBtn"
+                aria-label="Reproducir sesión"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m9 5 11 7-11 7Z" />
+                </svg>
+              </button>
+            </div>
+            <div class="deck">
+              <span class="deck-caption">B <span>DESPUÉS</span></span>
+              <div
+                class="deck-record alternate"
+                id="deckArtB"
+                aria-hidden="true"
+              >
+                <span>m.</span>
+              </div>
+              <h2 id="deckBTitle">El siguiente tema</h2>
+              <p id="deckBMeta">Sin canciones en espera</p>
+              <span class="deck-metrics" id="deckBMetrics">— BPM · —</span>
             </div>
           </div>
-
-          <div class="deck-box" id="deckCardB">
-            <div class="deck-top">
-              <span class="deck-label next">SIGUIENTE • DECK B</span>
-              <span class="deck-meta-pill" id="deckBMetrics">-- BPM • --</span>
-            </div>
-            <div class="deck-song" id="deckBTitle">En espera</div>
-            <div class="deck-artist" id="deckBMeta">Añade pistas con el botón + Mix</div>
+          <div class="studio-settings">
+            <label class="toggle-label"
+              ><input id="automixToggle" type="checkbox" checked /><span
+                class="toggle-switch"
+                aria-hidden="true"
+              ></span
+              ><span>Automix</span></label
+            ><label class="fade-setting" for="crossfadeSlider"
+              >Transición
+              <input
+                id="crossfadeSlider"
+                type="range"
+                min="0"
+                max="12"
+                step="1"
+                value="6"
+              /><output id="crossfadeLabel" for="crossfadeSlider"
+                >6 s</output
+              ></label
+            ><button class="text-button light" id="nextMixBtn">
+              Mezclar ahora →
+            </button>
           </div>
         </div>
-
-        <div class="lib-toolbar">
-          <h2 class="sub-heading">Cola de Mezcla Continua</h2>
-          <div class="lib-filters">
-            <button class="act-btn primary" id="smartSortQueueBtn">
-              Ordenar por Armonía (Camelot + BPM)
-            </button>
-            <button class="act-btn" id="clearQueueBtn">
-              Limpiar cola
+        <div class="session-toolbar">
+          <div>
+            <label class="sr-only" for="mixNameInput">Nombre de la mezcla</label
+            ><input
+              id="mixNameInput"
+              class="session-name"
+              value="Mi primera sesión"
+              maxlength="80"
+            />
+            <p id="mixDuration">0 canciones · 0:00 de música</p>
+          </div>
+          <div class="session-actions">
+            <button class="button secondary" id="smartSortQueueBtn">
+              Orden armónico ↝</button
+            ><button class="button primary" id="exportMixBtn">
+              Exportar mix
+              <span aria-hidden="true"
+                ><svg
+                  class="inline-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M7 17 17 7M7 7h10v10" /></svg
+              ></span>
             </button>
           </div>
         </div>
-
-        <div id="mixQueueContainer" class="cards-list"></div>
+        <p class="session-help">
+          Arriba y abajo para ordenar. Inicio y final para elegir qué parte
+          suena. La transición se aplica entre canciones.
+        </p>
+        <div id="mixQueueContainer" class="track-list mix-list"></div>
+        <div class="export-panel hidden" id="exportPanel" role="status">
+          <div>
+            <strong id="exportStatus">Preparando tu mezcla…</strong
+            ><button class="text-button" id="cancelExportBtn">Cancelar</button>
+          </div>
+          <progress id="exportProgress" max="100" value="0"></progress>
+        </div>
+        <div class="session-bottom">
+          <span
+            >Exportación WAV estéreo. El tamaño disponible depende de la memoria
+            del navegador.</span
+          ><button class="text-button danger" id="clearQueueBtn">
+            Vaciar sesión
+          </button>
+        </div>
       </section>
     </main>
-  </div>
 
-  <!-- REPRODUCTOR FLOTANTE ADAPTABLE (COMPACTO EN MÓVIL) -->
-  <footer class="player-bar" id="playerBar">
-    <!-- Barra de progreso superior visible en móvil -->
-    <div class="mobile-progress-line">
-      <div class="mobile-progress-fill" id="mobileProgressFill"></div>
-    </div>
-
-    <div class="player-left">
-      <img
-        id="playerCover"
-        src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' rx='10' fill='%23161925'/%3E%3C/svg%3E"
-        alt=""
-        class="player-thumb"
-      />
-      <div class="player-meta">
-        <div class="player-song" id="playerTitle">Selecciona una canción</div>
-        <div class="player-subline">
-          <span id="playerArtist">musiksml studio</span>
-          <span class="player-inline-metrics" id="playerBadges"></span>
+    <footer class="player-bar" aria-label="Reproductor de música">
+      <div class="player-track">
+        <div id="playerCover" class="player-art" aria-hidden="true">
+          <span>m.</span>
+        </div>
+        <div class="player-meta">
+          <strong id="playerTitle">Tu próxima favorita</strong
+          ><span id="playerArtist">Elige una canción para empezar</span>
+        </div>
+        <button
+          id="favoriteCurrentBtn"
+          class="icon-button favorite"
+          aria-label="Guardar como favorita"
+          disabled
+        >
+          ♡
+        </button>
+      </div>
+      <div class="player-center">
+        <div class="player-controls">
+          <button
+            id="prevTrackBtn"
+            class="icon-button"
+            aria-label="Canción anterior"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 5h2v14H5ZM18 5 8 12l10 7Z" />
+            </svg></button
+          ><button
+            id="playPauseBtn"
+            class="play-button"
+            aria-label="Reproducir"
+          >
+            <svg id="playIconSvg" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 5 11 7-11 7Z" />
+            </svg></button
+          ><button
+            id="nextTrackBtn"
+            class="icon-button"
+            aria-label="Canción siguiente"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M17 5h2v14h-2ZM6 5l10 7-10 7Z" />
+            </svg>
+          </button>
+        </div>
+        <div class="player-seek">
+          <span id="currentTimeLabel">0:00</span
+          ><input
+            id="seekSlider"
+            type="range"
+            min="0"
+            max="100"
+            step="0.1"
+            value="0"
+            aria-label="Posición de reproducción"
+            disabled
+          /><span id="totalTimeLabel">0:00</span>
         </div>
       </div>
-    </div>
-
-    <div class="player-mid">
-      <div class="player-controls">
-        <button class="ctrl-ico-btn" id="prevTrackBtn" title="Anterior">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
-          </svg>
-        </button>
-
-        <button class="ctrl-play-btn" id="playPauseBtn" title="Reproducir / Pausar">
-          <svg id="playIconSvg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <polygon points="6 4 20 12 6 20 6 4"/>
-          </svg>
-        </button>
-
-        <button class="ctrl-ico-btn" id="nextTrackBtn" title="Siguiente con Crossfade">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
-          </svg>
-        </button>
+      <div class="player-right">
+        <span class="player-state" id="playerState">SIN PRISAS.</span
+        ><label class="volume-control"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="m11 5-6 4H2v6h3l6 4Z M15 8c4 2 4 6 0 8m3-11c6 4 6 10 0 14"
+            /></svg
+          ><input
+            id="volumeSlider"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value="0.85"
+            aria-label="Volumen"
+        /></label>
       </div>
-
-      <div class="player-seek-row">
-        <span class="seek-time" id="currentTimeLabel">0:00</span>
-        <input type="range" id="seekSlider" min="0" max="100" value="0" step="0.1" class="seek-range" />
-        <span class="seek-time" id="totalTimeLabel">0:00</span>
+    </footer>
+    <div
+      id="toastContainer"
+      class="toast-area"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
+    <dialog id="confirmDialog">
+      <div class="dialog-icon" aria-hidden="true">−</div>
+      <h2 id="confirmTitle">¿Vaciar la sesión?</h2>
+      <p id="confirmDescription">
+        Puedes volver a añadir tus canciones desde la biblioteca.
+      </p>
+      <div class="dialog-actions">
+        <button class="button secondary" id="confirmCancelBtn">Cancelar</button
+        ><button class="button primary" id="confirmAcceptBtn">Vaciar</button>
       </div>
-    </div>
-
-    <div class="player-end">
-      <span class="xfade-tag" id="automixStatePill">AUTOMIX 6s</span>
-      <div class="vol-wrap">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-        </svg>
-        <input type="range" id="volumeSlider" min="0" max="1" step="0.02" value="0.9" class="vol-range" />
-      </div>
-      <button class="act-btn primary sm-dl" id="downloadCurrentBtn" disabled>
-        MP3
-      </button>
-    </div>
-  </footer>
-
-  <div id="toastContainer" class="toast-area"></div>
-  <script src="app.js"></script>
-</body>
+    </dialog>
+  </body>
 </html>
