@@ -86,18 +86,27 @@ def get_ydl_base_opts() -> dict:
         },
     }
 
-    # Archivo de cookies opcional, configurado en Railway.
+    # Verificar cookies de YouTube
     cookies_file = os.getenv("YOUTUBE_COOKIES_FILE", "").strip()
 
-    if cookies_file and Path(cookies_file).is_file():
-        opts["cookiefile"] = cookies_file
+    if cookies_file:
+        if Path(cookies_file).is_file():
+            opts["cookiefile"] = cookies_file
+            print("[MusiksML] Archivo de cookies encontrado.")
+        else:
+            print("[MusiksML] ADVERTENCIA: No existe el archivo de cookies configurado.")
+    else:
+        print("[MusiksML] No se configuró un archivo de cookies.")
 
+    # Configurar proxy de Webshare
     proxy_url = os.getenv("YOUTUBE_PROXY", "").strip()
+
     if proxy_url:
         opts["proxy"] = proxy_url
+        print("[MusiksML] Proxy configurado.")
+    else:
+        print("[MusiksML] Proxy no configurado.")
 
-    # Proveedor de PO Token: solo si el servidor está configurado
-    # para utilizarlo y la versión instalada lo admite.
     return opts
 
 # =========================================================
