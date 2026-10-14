@@ -143,8 +143,39 @@ def classify_error(error):
 
 class SafeLogger:
     # yt-dlp errors can contain proxy URLs. Never publish credentials in logs.
+    def __init__(self):
+        self.account_cookies_recognized = False
+        self.token_requested = False
+        self.clients = set()
+
     def debug(self, message):
-        pass
+        if "Found YouTube account cookies" in message:
+            self.account_cookies_recognized = True
+        if "Generating a " in message and " PO Token for " in message:
+            self.token_requested = True
+        # Keep only known client names, never the original log or token values.
+        match = re.search(r"Downloading ([a-z_ ]+) player API JSON", message)
+        if match:
+            client = match[1].replace(" ", "_")
+            if client in {
+                "web",
+                "web_embedded",
+                "web_creator",
+                "web_safari",
+                "web_music",
+                "tv_samsung",
+                "visionos",
+                "mweb",
+                "tv",
+            }:
+                self.clients.add(client)
+
+    def summary(self):
+        return {
+            "account_cookies_recognized": self.account_cookies_recognized,
+            "token_requested": self.token_requested,
+            "clients_attempted": sorted(self.clients),
+        }
 
     def warning(self, message):
         LOG.warning("yt-dlp warning: %s", classify_error(message).code)
@@ -298,7 +329,9 @@ def extraction_options(with_cookies=True):
         if path:
             runtimes[name] = {"path": path}
     opts["js_runtimes"] = runtimes
-    clients = os.getenv("YOUTUBE_PLAYER_CLIENTS", "mweb,tv,web_safari").strip()
+    # yt-dlp selects maintained clients according to authentication and JS support.
+    # Forcing troubleshooting clients here prevented newer defaults from running.
+    clients = os.getenv("YOUTUBE_PLAYER_CLIENTS", "").strip()
     if clients:
         opts["extractor_args"]["youtube"] = {
             "player_client": [c.strip() for c in clients.split(",") if c.strip()]
@@ -545,6 +578,7 @@ class YouTubeService:
                     )
                 opts = extraction_options()
                 opts.update(
+                    verbose=True,
                     format="bestaudio/bestaudio*/best[acodec!=none]",
                     noplaylist=True,
                     outtmpl=str(self.directory / "%(id)s.%(ext)s"),
@@ -558,10 +592,19 @@ class YouTubeService:
                         }
                     ],
                 )
-                with yt_dlp.YoutubeDL(opts) as ydl:
-                    info = ydl.extract_info(
-                        f"https://www.youtube.com/watch?v={video_id}", download=True
+                try:
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        info = ydl.extract_info(
+                            f"https://www.youtube.com/watch?v={video_id}", download=True
+                        )
+                except Exception as error:
+                    failure = classify_error(error)
+                    LOG.warning(
+                        "YouTube download failed: %s; diagnostics=%s",
+                        failure.code,
+                        opts["logger"].summary(),
                     )
+                    raise failure from None
                 self._record(video_id, info or {}, query)
                 cached = self._cached_result(video_id, info)
                 if not cached:

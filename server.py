@@ -69,7 +69,7 @@ def debug_cookies():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "release": "youtube-v2", **runtime_status()}
+    return {"status": "ok", "release": "youtube-v3", **runtime_status()}
 
 
 class UrlRequest(BaseModel):

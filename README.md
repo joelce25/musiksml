@@ -4,7 +4,7 @@ The static frontend runs on Vercel. FastAPI, FFmpeg, Chromium and the YouTube to
 
 ## Railway
 
-The Docker image pins `yt-dlp[default]` and installs version **2.0.2** of both the Python token plugin and its HTTP server. Node 24 and Deno are included. `python scripts/start.py` starts the provider, verifies its version, then starts the API. If either process stops, the container exits so Railway can restart it.
+The Docker image pins the official yt-dlp nightly **2026.10.10.233141**, verifies its SHA-256, and installs version **2.0.2** of both the Python token plugin and its HTTP server. This extractor includes the maintained `tv_samsung` client and updated authenticated defaults. Node 24 and Deno are included. `python scripts/start.py` starts the provider, verifies its version, then starts the API. If either process stops, the container exits so Railway can restart it.
 
 `/api/health` reports installed versions, runtime availability, token-server compatibility, cookie status and whether an explicit YouTube proxy is configured. It never returns credential values. `/api/debug-cookies` preserves the existing cookie diagnostic API. Session-cookie detection is a heuristic; only a successful YouTube request proves usable access.
 
@@ -13,7 +13,7 @@ Optional variables, configured securely in Railway:
 - `YOUTUBE_COOKIES_B64`: Base64 of a valid Netscape cookie file. Whitespace in Base64 is accepted. Changes refresh the cookie file atomically. Expired cookies are reported. Cookies can still be rejected by YouTube.
 - `YOUTUBE_COOKIES_FILE`: A mounted Netscape cookie file, when not using Base64.
 - `YOUTUBE_PROXY`: An HTTP/HTTPS proxy URL for YouTube traffic, including proxy authentication if needed. This is a server environment credential, not a frontend setting. Configure it only when an authorized, functioning outbound route is available. The same route is passed to the token provider for consistent token binding. A blocked datacenter IP cannot be made reliable merely by adding token libraries or retrying stale cookies.
-- `YOUTUBE_PLAYER_CLIENTS`: Overrides the comma-separated supported yt-dlp clients; defaults to `mweb,tv,web_safari`.
+- `YOUTUBE_PLAYER_CLIENTS`: Optional override of comma-separated supported yt-dlp clients. Leave unset to use yt-dlp's maintained defaults, selected according to authentication and available runtimes.
 - `DOWNLOAD_DIR`: Default `downloads`. For retained audio across redeployments, mount a Railway volume and point this variable to its downloads directory. The code does not create a Railway volume.
 - `YOUTUBE_POT_BASE_URL`: Defaults to the supervised local provider at `http://127.0.0.1:4416`. An external provider must match the plugin version.
 

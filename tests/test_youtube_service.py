@@ -155,11 +155,47 @@ def test_runtime_configuration_supports_proxy_and_matching_provider(monkeypatch)
     assert opts["extractor_args"]["youtubepot-bgutilhttp"]["base_url"] == [
         "http://127.0.0.1:4416"
     ]
-    assert opts["extractor_args"]["youtube"]["player_client"] == [
-        "mweb",
-        "tv",
-        "web_safari",
+    assert "youtube" not in opts["extractor_args"]
+    monkeypatch.setenv("YOUTUBE_PLAYER_CLIENTS", "tv_samsung,web")
+    assert ys.extraction_options()["extractor_args"]["youtube"]["player_client"] == [
+        "tv_samsung",
+        "web",
     ]
+
+
+def test_extractor_selects_supported_clients_for_authenticated_and_public_sessions(
+    monkeypatch,
+):
+    from yt_dlp.extractor.youtube import YoutubeIE
+
+    for authenticated in [False, True]:
+        monkeypatch.setattr(
+            YoutubeIE, "is_authenticated", property(lambda self: authenticated)
+        )
+        with ys.yt_dlp.YoutubeDL(ys.extraction_options()) as ydl:
+            extractor = YoutubeIE(ydl)
+            extractor.initialize()
+            clients = extractor._get_requested_clients(URL, {}, False)
+        assert "tv_samsung" in clients
+        assert "web" in clients
+        assert "tv_downgraded" not in clients
+
+
+def test_diagnostic_logger_never_retains_cookies_tokens_or_proxy_credentials(caplog):
+    logger = ys.SafeLogger()
+    logger.debug("[debug] Found YouTube account cookies")
+    logger.debug("[youtube] Downloading tv samsung player API JSON")
+    logger.debug(
+        "[youtube] Generating a gvs PO Token for web client via bgutil HTTP server"
+    )
+    logger.debug("[debug] Generated POT: secret-token")
+    logger.warning("Proxy error http://user:secret-password@proxy.example:80")
+    assert logger.summary() == {
+        "account_cookies_recognized": True,
+        "token_requested": True,
+        "clients_attempted": ["tv_samsung"],
+    }
+    assert "secret-" not in str(vars(logger)) + caplog.text
 
 
 @pytest.mark.parametrize(

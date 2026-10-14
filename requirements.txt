@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-yt-dlp[default]==2026.8.19
+yt-dlp[default] @ https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/2026.10.10.233141/yt-dlp.tar.gz#sha256=f983c6d3ded7148de5b8b22a7db41e12cef05f38f1b5396985d969593efad059
 requests
 beautifulsoup4
 imageio-ffmpeg
