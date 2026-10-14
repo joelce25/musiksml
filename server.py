@@ -73,12 +73,12 @@ def get_ydl_base_opts() -> dict:
         "fragment_retries": 3,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "mweb"],
-                "player_skip": ["webpage", "configs"]
+                # Permite que las búsquedas (ytsearch) funcionen sin listas vacías
+                "player_client": ["android", "web", "mweb"]
             }
         },
         "http_headers": {
-            "User-Agent": "com.google.android.youtube/19.29.35 (Linux; U; Android 14; es_PE; Pixel 7 Pro Build/UQ1A.240105.004)",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
             "Accept-Language": "es-PE,es;q=0.9,en;q=0.8",
         }
     }
@@ -590,8 +590,23 @@ def get_or_download_audio(
 
             with yt_dlp.YoutubeDL(info_opts) as ydl_info:
                 info = ydl_info.extract_info(target, download=False)
+                if not info:
+                    raise HTTPException(status_code=404, detail="No se obtuvo respuesta de YouTube.")
+
+                # Protección contra listas vacías (evita el error 'list index out of range')
                 if "entries" in info:
-                    info = info["entries"][0]
+                    entries = [e for e in info.get("entries", []) if e]
+                    if not entries:
+                        # Reintento con búsqueda limpia si falló la primera consulta
+                        clean_q = re.sub(r"[^\w\s]", " ", query or target).strip()
+                        fallback_target = f"ytsearch1:{clean_q}"
+                        fallback_info = ydl_info.extract_info(fallback_target, download=False)
+                        entries = [e for e in fallback_info.get("entries", []) if e] if fallback_info else []
+
+                    if not entries:
+                        raise HTTPException(status_code=404, detail="No se encontró ningún video en YouTube para este audio.")
+                    info = entries[0]
+
                 vid_id = info.get("id", "audio")
                 raw_title = info.get("title", "track")
 
@@ -625,7 +640,7 @@ def get_or_download_audio(
                     }]
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([info.get("webpage_url") or target])
+                    ydl.download([info.get("webpage_url") or f"https://www.youtube.com/watch?v={vid_id}"])
 
                 matches = [
                     f for f in DOWNLOAD_DIR.glob(f"*[{vid_id}]*")
@@ -645,8 +660,7 @@ def get_or_download_audio(
                 media_type=media_type,
                 headers={"Content-Disposition": f'{disposition}; filename="{clean_filename}"'}
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error procesando audio: {str(e)}")
-
-
-app.mount("/", StaticFiles(directory=".", html=True), name="static")
