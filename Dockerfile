@@ -10,7 +10,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     npm \
     git \
     && rm -rf /var/lib/apt/lists/*
+ENV DENO_INSTALL=/opt/deno
+ENV PATH="${DENO_INSTALL}/bin:${PATH}"
 
+RUN curl -fsSL https://deno.land/install.sh -o /tmp/install-deno.sh \
+    && sh /tmp/install-deno.sh \
+    && rm /tmp/install-deno.sh \
+    && deno --version
 WORKDIR /app
 
 # Instalar el servidor generador de PO Tokens de YouTube para IPs de centros de datos (Railway)
