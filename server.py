@@ -64,31 +64,41 @@ def get_track_lock(key: str) -> threading.Lock:
 # =========================================================
 COOKIE_INITIALIZED = False
 
+
 def get_ydl_base_opts() -> dict:
     opts = {
         "quiet": True,
         "no_warnings": True,
-        "nocheckcertificate": True,
         "retries": 3,
         "fragment_retries": 3,
         "extractor_args": {
             "youtube": {
-                # Permite que las búsquedas (ytsearch) funcionen sin listas vacías
                 "player_client": ["android", "web", "mweb"]
             }
         },
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/128.0.0.0 Safari/537.36"
+            ),
             "Accept-Language": "es-PE,es;q=0.9,en;q=0.8",
-        }
+        },
     }
+
+    # Archivo de cookies opcional, configurado en Railway.
+    cookies_file = os.getenv("YOUTUBE_COOKIES_FILE", "").strip()
+
+    if cookies_file and Path(cookies_file).is_file():
+        opts["cookiefile"] = cookies_file
 
     proxy_url = os.getenv("YOUTUBE_PROXY", "").strip()
     if proxy_url:
         opts["proxy"] = proxy_url
 
+    # Proveedor de PO Token: solo si el servidor está configurado
+    # para utilizarlo y la versión instalada lo admite.
     return opts
-
 
 # =========================================================
 # PASO 4: RUTA DE DIAGNÓSTICO DE COOKIES
