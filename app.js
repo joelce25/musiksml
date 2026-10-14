@@ -1,9 +1,7 @@
 "use strict";
 
 // The deployed frontend keeps the existing API. Local development uses one origin.
-const API_BASE = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)
-  ? ""
-  : "https://musiksml-production.up.railway.app";
+const API_BASE = ""; // Vercel forwards /api to Railway; audio uses the same origin.
 const STORAGE_KEY = "musiksml_studio_v4";
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -129,11 +127,7 @@ function hash(value) {
 }
 function normalizeTrack(track) {
   return {
-    id: String(
-      track.id ||
-        track.uid ||
-        `track_${hash(track.url || `${track.artist}|${track.title}`)}`,
-    ),
+    id: trackIdentity(track),
     title: String(track.title || "Sin título"),
     artist: String(track.artist || "Artista desconocido"),
     duration: Math.max(0, Number(track.duration) || 0),
@@ -148,6 +142,7 @@ function normalizeTrack(track) {
       track.localId ||
       (track.localBlobUrl ? `legacy_${track.id || hash(track.title)}` : null),
     isRealAudioAnalyzed: Boolean(track.isRealAudioAnalyzed),
+    analysis: normalizeAnalysis(track.analysis),
   };
 }
 function safeImage(value) {
@@ -170,7 +165,10 @@ function loadState() {
   const saved = readJSON(STORAGE_KEY, null);
   if (saved && typeof saved === "object") {
     state.library = Array.isArray(saved.library)
-      ? saved.library.map(normalizeTrack)
+      ? saved.library.filter(Boolean).map((t) => ({
+          ...normalizeTrack(t),
+          id: t.id || t.uid || trackIdentity(t),
+        }))
       : [];
     state.playlists = Array.isArray(saved.playlists)
       ? saved.playlists
@@ -191,7 +189,7 @@ function loadState() {
         : null;
     state.favorites = Array.isArray(saved.favorites) ? saved.favorites : [];
     state.fade = Number.isFinite(saved.fade)
-      ? Math.min(12, Math.max(0, saved.fade))
+      ? Math.min(16, Math.max(0, saved.fade))
       : 6;
     state.automix = saved.automix !== false;
     state.mixName = String(saved.mixName || state.mixName);
@@ -210,6 +208,7 @@ function loadState() {
       ? queue.map((t) => ({ track: normalizeTrack(t), start: 0, end: null }))
       : [];
   }
+  repairCollections();
 }
 function persist() {
   try {
@@ -345,7 +344,7 @@ function addToLibrary(tracks) {
   for (const track of tracks) {
     const idx = state.library.findIndex((t) => t.id === track.id);
     if (idx < 0) state.library.push(track);
-    else state.library[idx] = track;
+    else state.library[idx] = mergeTrack(state.library[idx], track);
   }
 }
 function saveImportedPlaylist() {
@@ -356,7 +355,7 @@ function saveImportedPlaylist() {
     id: imported.id,
     title: imported.title,
     source: imported.source,
-    trackIds: imported.tracks.map((t) => t.id),
+    trackIds: [...new Set(imported.tracks.map((t) => t.id))],
   };
   const idx = state.playlists.findIndex((p) => p.id === playlist.id);
   if (idx < 0) state.playlists.unshift(playlist);
@@ -367,7 +366,14 @@ function addToQueue(tracks) {
   let added = 0;
   for (const track of tracks) {
     if (!state.queue.some((q) => q.track.id === track.id)) {
-      state.queue.push({ track, start: 0, end: null });
+      state.queue.push({
+        track,
+        start: 0,
+        end: null,
+        fadeOut: null,
+        levelDb: 0,
+        edited: false,
+      });
       added++;
     }
   }
@@ -388,24 +394,7 @@ function favorite(track) {
   updatePlayer();
 }
 function imageArt(el, track) {
-  el.replaceChildren();
-  if (track?.thumbnail) {
-    const img = document.createElement("img");
-    img.src = track.thumbnail;
-    img.alt = "";
-    img.loading = "lazy";
-    img.onerror = () => {
-      img.remove();
-      const span = document.createElement("span");
-      span.textContent = "m.";
-      el.append(span);
-    };
-    el.append(img);
-  } else {
-    const span = document.createElement("span");
-    span.textContent = "m.";
-    el.append(span);
-  }
+  paintArtwork(el, track);
 }
 function empty(container, title, text, actionView = null, action = "") {
   container.innerHTML = `<div class="empty-state"><span class="empty-symbol" aria-hidden="true">↝</span><h2>${escapeHTML(title)}</h2><p>${escapeHTML(text)}</p>${actionView ? `<button class="button secondary" data-view="${actionView}">${escapeHTML(action)}</button>` : ""}</div>`;
@@ -423,10 +412,20 @@ function renderTrack(track, context, index) {
     <div class="track-metrics" title="${track.isRealAudioAnalyzed ? "Audio analizado" : "Tempo y tonalidad orientativos"}"><span>${track.bpm ? Math.round(track.bpm) : "—"} BPM</span><span class="track-key">${escapeHTML(track.key || "—")}</span><span class="track-duration">${track.duration ? seconds(track.duration) : "—:—"}</span></div>
     <div class="track-actions">${context === "queue" ? `<div class="queue-order"><button class="move-up" aria-label="Subir ${title}" ${index === 0 ? "disabled" : ""}>↑</button><button class="move-down" aria-label="Bajar ${title}" ${index === state.queue.length - 1 ? "disabled" : ""}>↓</button></div><button class="icon-button remove-track" aria-label="Quitar ${title} de la sesión">×</button>${downloadButton(track)}` : `<button class="icon-button favorite ${isFavorite ? "is-favorite" : ""}" aria-label="${isFavorite ? "Quitar" : "Añadir"} ${title} ${isFavorite ? "de" : "a"} favoritas" aria-pressed="${isFavorite}">${isFavorite ? "♥" : "♡"}</button><button class="small-button add-mix ${inQueue ? "added" : ""}" ${inQueue ? "disabled" : ""}>${inQueue ? "En mix ✓" : "＋ Mix"}</button>${downloadButton(track)}`}</div>`;
   imageArt(row.querySelector(".track-art"), track);
-  row.querySelector(".track-play").onclick = () =>
-    engine.playFrom(track, context);
+  row.querySelector(".track-play").onclick = () => {
+    if (engine.transition?.track.id === track.id && engine.source === context)
+      engine.toggle();
+    else engine.playFrom(track, context);
+  };
   row.querySelector(".download-track").onclick = () => downloadTrack(track);
   if (context !== "queue") {
+    if (context === "library") {
+      const preview = document.createElement("div");
+      preview.className = "track-preview";
+      preview.setAttribute("aria-hidden", "true");
+      preview.innerHTML = `<span class="preview-kicker">EN TU BIBLIOTECA</span><strong>${title}</strong><span>${escapeHTML(track.artist)}${track.duration ? ` · ${seconds(track.duration)}` : ""}</span><div class="preview-bars"><i></i><i></i><i></i><i></i><i></i></div>`;
+      row.append(preview);
+    }
     row.querySelector(".favorite").onclick = () => favorite(track);
     row.querySelector(".add-mix").onclick = () => {
       addToQueue([track]);
@@ -434,6 +433,9 @@ function renderTrack(track, context, index) {
     };
   } else {
     row.querySelector(".remove-track").onclick = () => {
+      if (engine.source === "queue" && engine.track?.id === track.id)
+        engine.stop();
+      else if (engine.transition?.track.id === track.id) engine.cancelFade();
       state.queue.splice(index, 1);
       persist();
       render();
@@ -451,53 +453,19 @@ function renderTrack(track, context, index) {
     row.querySelector(".move-up").onclick = () => move(-1);
     row.querySelector(".move-down").onclick = () => move(1);
     const q = state.queue[index];
-    const edit = document.createElement("div");
-    edit.className = "queue-edit";
-    edit.innerHTML = `<label>Inicio <input class="trim-start" aria-label="Inicio de ${title}, minutos y segundos" inputmode="decimal" value="${seconds(q.start || 0)}" placeholder="0:00"></label><label>Final <input class="trim-end" aria-label="Final de ${title}, minutos y segundos" inputmode="decimal" value="${q.end != null ? seconds(q.end) : ""}" placeholder="Completa"></label><span class="fragment-duration">${seconds(fragmentDuration(q))} de audio</span>`;
-    row.append(edit);
-    for (const [selector, key] of [
-      [".trim-start", "start"],
-      [".trim-end", "end"],
-    ]) {
-      edit.querySelector(selector).onchange = (e) => {
-        const input = e.currentTarget;
-        const value =
-          key === "end" && !input.value.trim() ? null : parseTime(input.value);
-        const start = key === "start" ? value : q.start || 0;
-        const end = key === "end" ? value : q.end;
-        const actualEnd = end ?? (track.duration || Infinity);
-        if (
-          (value !== null && (!Number.isFinite(value) || value < 0)) ||
-          start >= actualEnd ||
-          (track.duration && actualEnd > track.duration + 0.1)
-        ) {
-          input.classList.add("invalid");
-          input.setAttribute("aria-invalid", "true");
-          toast(
-            "Usa tiempos como 0:30. El final debe ir después del inicio y dentro de la canción.",
-          );
-          return;
-        }
-        q[key] = value;
-        persist();
-        input.classList.remove("invalid");
-        input.removeAttribute("aria-invalid");
-        if (engine.track?.id === track.id && engine.source === "queue")
-          engine.applyTrim();
-        edit.querySelector(".fragment-duration").textContent =
-          `${seconds(fragmentDuration(q))} de audio`;
-        $("mixDuration").textContent =
-          `${state.queue.length} canciones · ${seconds(sessionDuration())} de música`;
-        engine.preloadNext();
-      };
-    }
+    makeClipEditor(row, q, index);
   }
   return row;
 }
 function fragmentDuration(q) {
   return Math.max(0, (q.end ?? q.track.duration ?? 0) - (q.start || 0));
 }
-function transitionDuration(a, b, fade = state.fade) {
+function transitionDuration(
+  a,
+  b,
+  fade = state.automix ? (a?.fadeOut ?? state.fade) : 0,
+) {
+  if (!a || !b) return 0;
   return Math.max(
     0,
     Math.min(fade, fragmentDuration(a) / 2, fragmentDuration(b) / 2),
@@ -508,13 +476,7 @@ function sessionDuration() {
     (sum, q, i) =>
       sum +
       fragmentDuration(q) -
-      (i
-        ? transitionDuration(
-            state.queue[i - 1],
-            q,
-            state.automix ? state.fade : 0,
-          )
-        : 0),
+      (i ? transitionDuration(state.queue[i - 1], q) : 0),
     0,
   );
 }
@@ -643,6 +605,9 @@ function renderLibrary() {
     );
 }
 function renderQueue() {
+  $("mixQueueContainer")
+    .querySelectorAll(".track-row")
+    .forEach((row) => durationObserver.unobserve(row));
   $("mixDuration").textContent =
     `${state.queue.length} canciones · ${seconds(sessionDuration())} de música`;
   $("exportMixBtn").disabled = !state.queue.length || Boolean(exportJob);
@@ -666,10 +631,19 @@ function renderQueue() {
     );
   if (exportJob) {
     $("mixQueueContainer")
-      .querySelectorAll("input, .move-up, .move-down, .remove-track")
+      .querySelectorAll("input, button")
       .forEach((el) => {
         el.disabled = true;
       });
+  }
+  refreshSessionOverview();
+  if (state.view === "mixView") {
+    for (const q of state.queue.slice(0, 2)) {
+      if (!q.track.duration && !attemptedDurations.has(q.track.id)) {
+        attemptedDurations.add(q.track.id);
+        loadClipAudio(q);
+      }
+    }
   }
   updateStudio();
 }
@@ -681,8 +655,16 @@ function render() {
   renderQueue();
 }
 function compatibility(a, b) {
-  if (!a || !b || !a.key || !b.key || !a.bpm || !b.bpm)
-    return { score: 0, label: "TRANSICIÓN SUAVE" };
+  if (!a || !b) return { score: 0, label: "TRANSICIÓN SUAVE" };
+  const aBpm = a.analysis?.bpm || (a.isRealAudioAnalyzed ? a.bpm : null);
+  const bBpm = b.analysis?.bpm || (b.isRealAudioAnalyzed ? b.bpm : null);
+  if (!aBpm || !bBpm) return { score: 0, label: "CRUCE SUAVE" };
+  const diff = Math.abs(aBpm - bBpm);
+  if (!a.isRealAudioAnalyzed || !b.isRealAudioAnalyzed || !a.key || !b.key)
+    return {
+      score: 40 - diff * 3,
+      label: diff <= 8 ? "RITMOS CERCANOS" : "CRUCE BREVE",
+    };
   const an = parseInt(a.key),
     bn = parseInt(b.key);
   const harmonic =
@@ -690,13 +672,13 @@ function compatibility(a, b) {
     (a.key.slice(-1) === b.key.slice(-1) &&
       [1, 11].includes(Math.abs(an - bn))) ||
     (an === bn && a.key.slice(-1) !== b.key.slice(-1));
-  const diff = Math.abs(a.bpm - b.bpm);
   return {
     score: (harmonic ? 100 : 20) - diff * 3,
     label: harmonic && diff <= 8 ? "TONOS COMPATIBLES" : "TRANSICIÓN SUAVE",
   };
 }
 function smartSort() {
+  if (state.queue.length < 2) return;
   const pool = [...state.queue];
   const sorted = [pool.shift()];
   while (pool.length) {
@@ -713,7 +695,9 @@ function smartSort() {
   persist();
   render();
   engine.preloadNext();
-  toast("Orden sugerido por tonalidad y tempo. Puedes mover cada canción.");
+  toast(
+    "Orden sugerido con los datos de audio disponibles. Puedes mover cada canción.",
+  );
 }
 
 // Two media decks feed Web Audio gains. iOS can ignore Audio.volume;
@@ -728,6 +712,7 @@ class AudioMixer {
     this.list = [];
     this.context = null;
     this.nodes = new Map();
+    this.filters = new Map();
     this.master = null;
     this.transition = null;
     this.revision = 0;
@@ -741,20 +726,15 @@ class AudioMixer {
       deck.addEventListener("loadedmetadata", () => {
         const track = deck._track;
         if (track && Number.isFinite(deck.duration)) {
-          track.duration = deck.duration;
-          for (const entry of [
-            state.library,
-            state.imported?.tracks || [],
-            state.queue.map((q) => q.track),
-          ]) {
-            const found = entry.find((t) => t.id === track.id);
-            if (found) found.duration = deck.duration;
-          }
-          persist();
-          renderQueue();
+          refreshTrackDuration(track, deck.duration);
         }
       });
       deck.addEventListener("ended", () => {
+        if (
+          this.transition &&
+          [this.transition.outgoing, this.transition.incoming].includes(deck)
+        )
+          this.finishFade();
         if (
           deck === this.active &&
           !this.transition &&
@@ -793,18 +773,106 @@ class AudioMixer {
       for (const deck of this.decks) {
         const source = this.context.createMediaElementSource(deck);
         const gain = this.context.createGain();
-        source.connect(gain);
+        const bass = this.context.createBiquadFilter();
+        bass.type = "lowshelf";
+        bass.frequency.value = 180;
+        source.connect(bass);
+        bass.connect(gain);
         gain.connect(this.master);
         this.nodes.set(deck, gain);
+        this.filters.set(deck, bass);
       }
     }
     if (this.context.state === "suspended") await this.context.resume();
   }
   gain(deck, value) {
-    if (this.nodes.has(deck))
-      this.nodes
-        .get(deck)
-        .gain.setTargetAtTime(value, this.context.currentTime, 0.015);
+    if (this.nodes.has(deck)) {
+      const gain = this.nodes.get(deck).gain;
+      gain.cancelScheduledValues(this.context.currentTime);
+      gain.setTargetAtTime(value, this.context.currentTime, 0.015);
+    }
+  }
+  trackGain(track, source = this.source) {
+    return source === "queue" ? clipGain(queueEntry(track)) : 1;
+  }
+  refreshGains() {
+    if (this.transition) {
+      if (this.transition.manual || this.active.paused) this.holdFade();
+      else this.scheduleFade();
+    } else if (this.track) this.gain(this.active, this.trackGain(this.track));
+  }
+  holdFade() {
+    const t = this.transition;
+    if (!t) return;
+    const p = t.manual ? t.position : Math.min(1, t.elapsed / t.duration);
+    this.gain(
+      t.outgoing,
+      Math.cos((p * Math.PI) / 2) * this.trackGain(this.track),
+    );
+    this.gain(
+      t.incoming,
+      Math.sin((p * Math.PI) / 2) * this.trackGain(t.track, t.source),
+    );
+    for (const [deck, bass] of [
+      [t.outgoing, -12 * p],
+      [t.incoming, -12 * (1 - p)],
+    ]) {
+      const param = this.filters.get(deck)?.gain;
+      if (param) {
+        param.cancelScheduledValues(this.context.currentTime);
+        param.setTargetAtTime(bass, this.context.currentTime, 0.02);
+      }
+    }
+  }
+  scheduleFade() {
+    const t = this.transition;
+    if (!t || t.manual) return this.holdFade();
+    const remaining = Math.max(0.01, t.duration - t.elapsed);
+    const from = Math.min(1, t.elapsed / t.duration);
+    for (const [deck, incoming, level] of [
+      [t.outgoing, false, this.trackGain(this.track)],
+      [t.incoming, true, this.trackGain(t.track, t.source)],
+    ]) {
+      const curve = Float32Array.from({ length: 128 }, (_, i) => {
+        const p = from + ((1 - from) * i) / 127;
+        return (
+          level *
+          (incoming ? Math.sin((p * Math.PI) / 2) : Math.cos((p * Math.PI) / 2))
+        );
+      });
+      const gain = this.nodes.get(deck).gain;
+      gain.cancelScheduledValues(this.context.currentTime);
+      gain.setValueCurveAtTime(curve, this.context.currentTime, remaining);
+      const bass = this.filters.get(deck).gain;
+      bass.cancelScheduledValues(this.context.currentTime);
+      bass.setValueAtTime(
+        incoming ? -12 * (1 - from) : -12 * from,
+        this.context.currentTime,
+      );
+      bass.linearRampToValueAtTime(
+        incoming ? 0 : -12,
+        this.context.currentTime + remaining,
+      );
+    }
+  }
+  async manualBridge(position = 0) {
+    if (!this.track || this.source !== "queue" || !this.nextTrack())
+      return toast(
+        "Reproduce una sesión con al menos dos canciones para usar el cruce manual.",
+      );
+    if (!this.transition?.manual) {
+      if (this.active.paused)
+        return toast("Reproduce el tema A antes de cargar el cruce manual.");
+      if (this.transition || this.loading) return;
+      await this.start(this.nextTrack(), true, null, {
+        manual: true,
+        position,
+      });
+    } else {
+      this.transition.position = position;
+      this.holdFade();
+      if (position >= 1) this.finishFade();
+    }
   }
   volume(value) {
     state.volume = value;
@@ -915,7 +983,7 @@ class AudioMixer {
           : state.imported?.tracks || [track];
     return this.start(track, false, { source, list: [...list] });
   }
-  async start(track, fade = false, playback = null) {
+  async start(track, fade = false, playback = null, manual = null) {
     const revision = ++this.revision;
     this.preloadRevision++;
     this.cancelFade();
@@ -949,23 +1017,37 @@ class AudioMixer {
         ) - outgoing.currentTime,
       );
       const nextDuration = Math.min(incoming.duration, trim.end) - trim.start;
+      const outgoingEntry =
+        this.source === "queue"
+          ? queueEntry(this.track)
+          : { track: this.track, ...this.trim(this.track || {}) };
+      const incomingEntry =
+        source === "queue" ? queueEntry(track) : { track, ...trim };
+      const plannedFade = this.track
+        ? transitionDuration(
+            outgoingEntry,
+            incomingEntry,
+            outgoingEntry?.fadeOut ?? state.fade,
+          )
+        : 0;
       const duration =
-        fade && !outgoing.paused && this.track && state.automix
-          ? Math.min(state.fade, remaining, nextDuration / 2)
+        fade && !outgoing.paused && this.track
+          ? Math.min(plannedFade, remaining, nextDuration / 2)
           : 0;
-      if (duration > 0.05) {
+      if (duration > 0.05 || (manual && !outgoing.paused && remaining > 0.1)) {
         this.transition = {
           outgoing,
           incoming,
           track,
           source,
           list,
-          duration,
+          duration: Math.max(0.1, duration),
           elapsed: 0,
           lastTime: this.context.currentTime,
+          manual: Boolean(manual),
+          position: manual ? Number($("manualCrossfader").value) / 100 : 0,
         };
-        this.gain(outgoing, 1);
-        this.gain(incoming, 0);
+        this.scheduleFade();
       } else {
         outgoing.pause();
         this.gain(outgoing, 0);
@@ -974,7 +1056,7 @@ class AudioMixer {
         this.track = track;
         this.source = source;
         this.list = list;
-        this.gain(incoming, 1);
+        this.gain(incoming, this.trackGain(track, source));
         this.prepared = null;
       }
       this.loading = false;
@@ -982,10 +1064,11 @@ class AudioMixer {
       render();
       updatePlayer();
       this.preloadNext();
+      return true;
     } catch (error) {
       if (revision === this.revision) {
         incoming.pause();
-        this.gain(outgoing, 1);
+        this.gain(outgoing, this.track ? this.trackGain(this.track) : 1);
         this.loading = false;
         this.advancing = false;
         if (error.name !== "AbortError") toast(error.message);
@@ -1000,9 +1083,14 @@ class AudioMixer {
     if (!this.transition) return;
     this.transition.incoming.pause();
     this.gain(this.transition.incoming, 0);
-    this.gain(this.transition.outgoing, 1);
+    this.gain(this.transition.outgoing, this.trackGain(this.track));
+    for (const filter of this.filters.values()) {
+      filter.gain.cancelScheduledValues(this.context.currentTime);
+      filter.gain.setValueAtTime(0, this.context.currentTime);
+    }
     this.transition = null;
     $("bridgeProgressFill").style.width = "0%";
+    $("manualCrossfader").value = 0;
   }
   stop() {
     this.revision++;
@@ -1030,10 +1118,15 @@ class AudioMixer {
     this.track = t.track;
     this.source = t.source;
     this.list = t.list;
-    this.gain(this.active, 1);
+    this.gain(this.active, this.trackGain(this.track));
+    for (const filter of this.filters.values()) {
+      filter.gain.cancelScheduledValues(this.context.currentTime);
+      filter.gain.setValueAtTime(0, this.context.currentTime);
+    }
     this.advancing = false;
     this.prepared = null;
     $("bridgeProgressFill").style.width = "0%";
+    $("manualCrossfader").value = 0;
     render();
     updatePlayer();
     this.preloadNext();
@@ -1042,13 +1135,19 @@ class AudioMixer {
     if (this.transition) {
       const t = this.transition,
         now = this.context.currentTime;
-      if (!t.incoming.paused) t.elapsed += Math.max(0, now - t.lastTime);
+      if (!t.incoming.paused && !t.manual)
+        t.elapsed += Math.max(0, now - t.lastTime);
       t.lastTime = now;
-      const p = Math.min(1, t.elapsed / t.duration);
-      this.gain(t.outgoing, Math.cos((p * Math.PI) / 2));
-      this.gain(t.incoming, Math.sin((p * Math.PI) / 2));
+      const p = t.manual ? t.position : Math.min(1, t.elapsed / t.duration);
       $("bridgeProgressFill").style.width = `${p * 100}%`;
-      if (p >= 1) this.finishFade();
+      if (
+        p >= 1 ||
+        (t.manual &&
+          !t.outgoing.paused &&
+          t.outgoing.currentTime >=
+            Math.min(t.outgoing.duration, this.trim(this.track).end) - 0.08)
+      )
+        this.finishFade();
     }
     if (!this.track) return;
     const trim = this.trim(this.track);
@@ -1071,12 +1170,23 @@ class AudioMixer {
     ) {
       const remaining = end - this.active.currentTime;
       const next = this.nextTrack();
+      const a =
+        this.source === "queue"
+          ? queueEntry(this.track)
+          : { track: this.track, ...trim };
+      const b =
+        this.source === "queue"
+          ? queueEntry(next)
+          : next
+            ? { track: next, ...this.trim(next) }
+            : null;
+      const overlap = transitionDuration(a, b);
       if (
         next &&
         state.automix &&
-        state.fade > 0 &&
+        overlap > 0 &&
         this.prepared === next.id &&
-        remaining <= Math.min(state.fade, duration / 2)
+        remaining <= overlap
       )
         this.next(true);
       else if (remaining <= 0.08) {
@@ -1152,12 +1262,25 @@ class AudioMixer {
           await this.transition.incoming.play();
         }
         await this.active.play();
+        if (this.transition) {
+          this.transition.lastTime = this.context.currentTime;
+          this.scheduleFade();
+        }
       } catch {
         toast(
           "No se pudo iniciar el audio. Toca reproducir para intentarlo otra vez.",
         );
       }
     } else {
+      if (this.transition) {
+        if (!this.transition.manual)
+          this.transition.elapsed = Math.min(
+            this.transition.duration,
+            this.transition.elapsed +
+              Math.max(0, this.context.currentTime - this.transition.lastTime),
+          );
+        this.holdFade();
+      }
       this.active.pause();
       this.transition?.incoming.pause();
     }
@@ -1187,6 +1310,19 @@ const engine = new AudioMixer();
 function updatePlayer() {
   const track = engine.track;
   const playing = !engine.active.paused;
+  document.querySelectorAll(".track-row").forEach((row) => {
+    const audible =
+      playing &&
+      (row.dataset.trackId === track?.id ||
+        row.dataset.trackId === engine.transition?.track.id);
+    row.classList.toggle("is-audible", audible);
+    const button = row.querySelector(".track-play");
+    button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${audible ? '<path d="M7 5h4v14H7zm7 0h4v14h-4Z"/>' : '<path d="m8 5 11 7-11 7Z"/>'}</svg>`;
+    button.setAttribute(
+      "aria-label",
+      `${audible ? "Pausar" : "Reproducir"} ${row.querySelector(".track-title").textContent}`,
+    );
+  });
   $("playIconSvg").innerHTML = playing
     ? '<path d="M7 5h4v14H7zm7 0h4v14h-4Z"/>'
     : '<path d="m9 5 11 7-11 7Z"/>';
@@ -1260,8 +1396,9 @@ function updateStudio() {
     $(`deck${suffix}Meta`).textContent =
       t?.artist ||
       (suffix === "A" ? "Añade música a la sesión" : "Sin canciones en espera");
+    const tempo = t?.analysis?.bpm || (t?.isRealAudioAnalyzed ? t.bpm : null);
     $(`deck${suffix}Metrics`).textContent =
-      `${t?.bpm ? Math.round(t.bpm) : "—"} BPM · ${t?.key || "—"}`;
+      `${tempo ? Math.round(tempo) : "—"} BPM · ${t?.isRealAudioAnalyzed ? t.key || "—" : t?.analysis ? "audio listo" : "audio por preparar"}`;
     imageArt($(`deckArt${suffix}`), t);
     $(`deckArt${suffix}`).parentElement.classList.toggle(
       "is-playing",
@@ -1284,6 +1421,22 @@ function updateStudio() {
         : !inSession || engine.active.paused
           ? " LISTO PARA ESCUCHAR"
           : " EN REPRODUCCIÓN";
+  $("manualCrossfader").disabled =
+    !inSession ||
+    !b ||
+    engine.loading ||
+    Boolean(engine.transition && !engine.transition.manual) ||
+    (!engine.transition && engine.active.paused);
+  $("cueNextMixBtn").disabled =
+    !inSession ||
+    !b ||
+    engine.loading ||
+    Boolean(engine.transition) ||
+    engine.active.paused;
+  $("nextMixBtn").disabled = !inSession || !b || engine.loading;
+  $("manualMixHint").textContent = engine.transition?.manual
+    ? "Cruce manual activo · mueve de A hacia B. Al llegar a B, la siguiente canción toma el relevo."
+    : "Prueba el cruce en vivo con A y B. Para el archivo exportado, ajusta los tiempos y las transiciones de cada tema abajo.";
 }
 
 function downloadBlob(blob, name) {
@@ -1465,6 +1618,7 @@ async function exportMix() {
         );
       }
       ensureActive();
+      refreshTrackDuration(q.track, buffer.duration);
       const start = q.start || 0,
         end = q.end ?? buffer.duration;
       if (start >= end || end > buffer.duration + 0.1)
@@ -1496,13 +1650,19 @@ async function exportMix() {
         start: 0,
         fadeIn: 0,
         fadeOut: 0,
+        fadeSeconds: state.automix ? (q.fadeOut ?? fade) : 0,
+        gain: clipGain(q),
       });
     }
     let total = 0;
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
       const overlap = i
-        ? Math.min(fade, entries[i - 1].duration / 2, entry.duration / 2)
+        ? Math.min(
+            entries[i - 1].fadeSeconds,
+            entries[i - 1].duration / 2,
+            entry.duration / 2,
+          )
         : 0;
       entry.start = total - overlap;
       entry.fadeIn = overlap;
@@ -1519,27 +1679,42 @@ async function exportMix() {
     progress("Uniendo canciones y suavizando transiciones…", 65);
     const offline = new offlineConstructor(2, frames, sampleRate);
     const steps = 128;
-    const fadeIn = new Float32Array(steps),
-      fadeOut = new Float32Array(steps);
-    for (let i = 0; i < steps; i++) {
-      fadeIn[i] = Math.sin(((i / (steps - 1)) * Math.PI) / 2);
-      fadeOut[i] = Math.cos(((i / (steps - 1)) * Math.PI) / 2);
-    }
     for (const entry of entries) {
       const source = offline.createBufferSource(),
-        gain = offline.createGain();
+        gain = offline.createGain(),
+        bass = offline.createBiquadFilter();
       source.buffer = entry.buffer;
-      source.connect(gain);
+      bass.type = "lowshelf";
+      bass.frequency.value = 180;
+      source.connect(bass);
+      bass.connect(gain);
       gain.connect(offline.destination);
-      gain.gain.setValueAtTime(1, entry.start);
-      if (entry.fadeIn)
+      const fadeIn = Float32Array.from(
+        { length: steps },
+        (_, i) => entry.gain * Math.sin(((i / (steps - 1)) * Math.PI) / 2),
+      );
+      const fadeOut = Float32Array.from(
+        { length: steps },
+        (_, i) => entry.gain * Math.cos(((i / (steps - 1)) * Math.PI) / 2),
+      );
+      gain.gain.setValueAtTime(entry.gain, entry.start);
+      if (entry.fadeIn) {
         gain.gain.setValueCurveAtTime(fadeIn, entry.start, entry.fadeIn);
-      if (entry.fadeOut)
+        bass.gain.setValueAtTime(-12, entry.start);
+        bass.gain.linearRampToValueAtTime(0, entry.start + entry.fadeIn);
+      }
+      if (entry.fadeOut) {
         gain.gain.setValueCurveAtTime(
           fadeOut,
           entry.start + entry.duration - entry.fadeOut,
           entry.fadeOut,
         );
+        bass.gain.setValueAtTime(
+          0,
+          entry.start + entry.duration - entry.fadeOut,
+        );
+        bass.gain.linearRampToValueAtTime(-12, entry.start + entry.duration);
+      }
       source.start(entry.start);
       source.stop(entry.start + entry.duration);
     }
@@ -1858,6 +2033,14 @@ function initializeUI() {
     }
   };
   $("smartSortQueueBtn").onclick = smartSort;
+  $("prepareMixBtn").onclick = prepareAutomix;
+  $("cancelPrepareBtn").onclick = () => studioJob?.controller.abort();
+  $("cueNextMixBtn").onclick = () => {
+    $("manualCrossfader").value = 0;
+    engine.manualBridge(0);
+  };
+  $("manualCrossfader").oninput = (event) =>
+    engine.manualBridge(Number(event.target.value) / 100);
   $("clearQueueBtn").onclick = async () => {
     if (
       await confirmAction(
@@ -1879,7 +2062,15 @@ function initializeUI() {
     state.fade = Number(event.target.value);
     $("crossfadeLabel").textContent = `${state.fade} s`;
     persist();
-    renderQueue();
+    document
+      .querySelectorAll("#mixQueueContainer .track-row")
+      .forEach((row) => {
+        const q = row._queueEntry;
+        const input = row.querySelector(".clip-fade");
+        if (input && q.fadeOut == null) input.value = state.fade;
+        row._refreshClip?.();
+      });
+    refreshSessionOverview();
   };
   $("automixToggle").onchange = (event) => {
     state.automix = event.target.checked;

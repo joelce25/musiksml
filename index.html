@@ -42,6 +42,9 @@
       crossorigin
     />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="assets/css/studio.css" />
+    <script src="assets/js/library-tools.js" defer></script>
+    <script src="assets/js/studio-tools.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -384,7 +387,7 @@
           <div>
             <span class="eyebrow">03 / TU SESIÓN</span>
             <h1 id="mixTitle">Que todo<br /><span>fluya a tu manera.</span></h1>
-            <p>Elige el orden. Ajusta los fragmentos. Une tus canciones.</p>
+            <p>Tu selección. Tus tiempos. Una mezcla que suena a ti.</p>
           </div>
           <button class="button secondary" data-view="libraryView">
             Añadir desde biblioteca ＋
@@ -443,15 +446,15 @@
                 class="toggle-switch"
                 aria-hidden="true"
               ></span
-              ><span>Automix</span></label
+              ><span>Cruces automáticos</span></label
             ><label class="fade-setting" for="crossfadeSlider"
               >Transición
               <input
                 id="crossfadeSlider"
                 type="range"
                 min="0"
-                max="12"
-                step="1"
+                max="16"
+                step="0.5"
                 value="6"
               /><output id="crossfadeLabel" for="crossfadeSlider"
                 >6 s</output
@@ -459,6 +462,31 @@
             ><button class="text-button light" id="nextMixBtn">
               Mezclar ahora →
             </button>
+          </div>
+          <div class="manual-mix">
+            <div>
+              <span class="manual-caption">TOMA EL CONTROL</span>
+              <h3>Un cruce, a tu ritmo.</h3>
+              <p id="manualMixHint">
+                Carga B y mueve el deslizador para cruzar a tu ritmo.
+              </p>
+            </div>
+            <div class="manual-controls">
+              <button class="small-button" id="cueNextMixBtn">Cargar B</button
+              ><label class="manual-fader"
+                ><span>A</span
+                ><input
+                  id="manualCrossfader"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="0"
+                  aria-label="Cruce manual entre A y B"
+                  disabled
+                /><span>B</span></label
+              >
+            </div>
           </div>
         </div>
         <div class="session-toolbar">
@@ -473,8 +501,11 @@
             <p id="mixDuration">0 canciones · 0:00 de música</p>
           </div>
           <div class="session-actions">
+            <button class="button secondary" id="prepareMixBtn">
+              Preparar automix ✦
+            </button>
             <button class="button secondary" id="smartSortQueueBtn">
-              Orden armónico ↝</button
+              Orden recomendado ↝</button
             ><button class="button primary" id="exportMixBtn">
               Exportar mix
               <span aria-hidden="true"
@@ -488,9 +519,21 @@
             </button>
           </div>
         </div>
+        <div class="prepare-feedback">
+          <p id="prepareStatus" class="hidden" role="status"></p>
+          <button id="cancelPrepareBtn" class="text-button hidden">
+            Cancelar preparación
+          </button>
+        </div>
+        <div
+          class="mix-timeline"
+          id="mixTimeline"
+          aria-label="Orden y duración de la sesión"
+        ></div>
         <p class="session-help">
-          Arriba y abajo para ordenar. Inicio y final para elegir qué parte
-          suena. La transición se aplica entre canciones.
+          Prepara el automix para recortar silencios y equilibrar el volumen.
+          Ajusta la entrada, la salida y el cruce de cada tema, escucha el
+          resultado y expórtalo como un solo audio.
         </p>
         <div id="mixQueueContainer" class="track-list mix-list"></div>
         <div class="export-panel hidden" id="exportPanel" role="status">

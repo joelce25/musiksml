@@ -25,6 +25,10 @@ Spotify reads wait for document content and captured playlist data, instead of `
 
 ## Development and validation
 
+The studio supports exact entry/exit times in seconds or `m:ss`, fractional seconds, waveform seeking, per-song transition lengths and volume controls, previewing an entry, ending or crossfade, and a manual A/B crossfader for live listening. The exported file follows the saved clip boundaries and transitions; it does not record manual fader gestures. “Preparar automix” analyzes real audio in a Web Worker to find silence, balance levels and suggest blend lengths. It preserves manual trims and transition choices. Measured tempo is shown only with rhythmic evidence; metadata estimates are not treated as measured harmonic compatibility. Live and exported fades use the same overlap limits and reduce overlapping bass.
+
+Library identities use the source recording or normalized artist/title rather than Spotify playlist-entry IDs. Existing collections migrate without losing playlist membership, favorites or trims. Artwork loads on demand, shares fallback album lookups and uses a readable cover when no image is available. The static helpers live in `assets/js/`; studio styles live in `assets/css/studio.css`. These changes leave the backend extraction pipeline intact.
+
 Use Python 3.11, install `requirements.txt` and `tests/requirements.txt`, and ensure FFmpeg is on PATH. For deployed service testing:
 
 ```sh

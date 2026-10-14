@@ -22,7 +22,8 @@ from playwright.sync_api import expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 temporary = tempfile.TemporaryDirectory(prefix="musiksml-browser-tests-")
-ARTIFACTS = Path(temporary.name)
+ARTIFACTS = Path(os.environ.get("MUSIKSML_ARTIFACTS", temporary.name))
+ARTIFACTS.mkdir(parents=True, exist_ok=True)
 with socket.socket() as sock:
     sock.bind(("127.0.0.1", 0))
     PORT = sock.getsockname()[1]
@@ -133,6 +134,12 @@ with sync_playwright() as p:
             route.continue_()
 
     page.route("**/api/**", route_api)
+    if "--studio-only" in sys.argv:
+        from studio_checks import run_studio_checks
+
+        run_studio_checks(browser, BASE, fixtures, ARTIFACTS)
+        browser.close()
+        raise SystemExit(0)
     page.goto(BASE + "/", wait_until="networkidle")
     # Follow system appearance until the user explicitly chooses a theme.
     page.emulate_media(color_scheme="dark")
@@ -417,4 +424,7 @@ with sync_playwright() as p:
     assert old_page.evaluate('localStorage.getItem("musiksml_library") !== null')
     legacy.close()
     print("PASS legacy library migration without deleting previous storage", flush=True)
+    from studio_checks import run_studio_checks
+
+    run_studio_checks(browser, BASE, fixtures, ARTIFACTS)
     browser.close()
