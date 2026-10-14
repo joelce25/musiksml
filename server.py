@@ -54,39 +54,46 @@ app.add_middleware(
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 def get_ydl_base_opts() -> dict:
-    """
-    Opciones anti-bot para servidores Cloud (Railway/Render):
-    1. Usa clientes internos (tv_embedded / ios / android_vr) para saltar el bloqueo de IP de centro de datos.
-    2. Si existe la variable YOUTUBE_COOKIES en Railway o cookies.txt, la inyecta automáticamente.
-    """
+    raw_cookies = os.getenv("YOUTUBE_COOKIES", "").strip()
+    cookie_file = Path("/tmp/youtube_cookies.txt") if os.name != "nt" else Path("cookies.txt")
+    has_valid_cookies = False
+
+    if raw_cookies:
+        try:
+            # Reconstruir saltos de línea por si Railway los escapó
+            formatted_cookies = raw_cookies.replace("\\n", "\n")
+            cookie_file.write_text(formatted_cookies, encoding="utf-8")
+            has_valid_cookies = True
+        except Exception as e:
+            print(f"Error escribiendo cookies: {e}")
+    elif cookie_file.exists() and cookie_file.stat().st_size > 100:
+        has_valid_cookies = True
+
     opts = {
         "quiet": True,
         "no_warnings": True,
         "nocheckcertificate": True,
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["tv_embedded", "ios", "android_vr", "mweb"],
-                "player_skip": ["webpage", "configs"]
-            }
-        },
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
             "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
         }
     }
 
-    # Si configuraste YOUTUBE_COOKIES en la pestaña Variables de Railway
-    raw_cookies = os.getenv("YOUTUBE_COOKIES", "").strip()
-    cookie_file = Path("cookies.txt")
-
-    if raw_cookies:
-        try:
-            cookie_file.write_text(raw_cookies, encoding="utf-8")
-            opts["cookiefile"] = str(cookie_file)
-        except Exception:
-            pass
-    elif cookie_file.exists():
+    if has_valid_cookies:
+        # Con cookies activas usamos web + tv para que yt-dlp envíe la sesión autenticada
         opts["cookiefile"] = str(cookie_file)
+        opts["extractor_args"] = {
+            "youtube": {
+                "player_client": ["web", "tv"]
+            }
+        }
+    else:
+        # Sin cookies intentamos tv_embedded y android_vr
+        opts["extractor_args"] = {
+            "youtube": {
+                "player_client": ["tv_embedded", "android_vr", "mweb"]
+            }
+        }
 
     return opts
 
@@ -607,7 +614,7 @@ def get_or_download_audio(
                 out_tmpl = str(DOWNLOAD_DIR / "%(title).75B [%(id)s].%(ext)s")
                 ydl_opts = get_ydl_base_opts()
                 ydl_opts.update({
-                    "format": "bestaudio/best",
+                    "format": "ba/b",
                     "outtmpl": out_tmpl,
                     "noplaylist": True,
                     "overwrites": False,
