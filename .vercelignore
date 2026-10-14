@@ -5,3 +5,8 @@ downloads/
 __pycache__/
 *.pyc
 .env
+youtube_service.py
+scripts/
+tests/
+railway.toml
+.dockerignore

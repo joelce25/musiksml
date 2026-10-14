@@ -310,7 +310,8 @@ async function request(url, options = {}, timeout = 90000) {
       throw new Error(
         typeof body.detail === "string"
           ? body.detail
-          : `No se pudo completar la solicitud (${response.status}).`,
+          : body.detail?.message ||
+              `No se pudo completar la solicitud (${response.status}).`,
       );
     }
     // Consume bodies here so timeouts and cancellation also cover audio downloads.

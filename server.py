@@ -2,27 +2,33 @@ import os
 import re
 import time
 import json
-import base64
 import shutil
 import tempfile
-import threading
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import yt_dlp
 import requests
 from bs4 import BeautifulSoup
 import numpy as np
 from dotenv import load_dotenv
+from youtube_service import (
+    YouTubeService,
+    YouTubeError,
+    AUDIO_TYPES,
+    cookie_status,
+    extraction_options,
+    runtime_status,
+)
 
 load_dotenv()
 
 try:
     import librosa
+
     HAS_LIBROSA = True
 except Exception:
     HAS_LIBROSA = False
@@ -31,6 +37,7 @@ FFMPEG_PATH = shutil.which("ffmpeg")
 if not FFMPEG_PATH:
     try:
         import imageio_ffmpeg
+
         FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
     except Exception:
         FFMPEG_PATH = None
@@ -44,100 +51,59 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DOWNLOAD_DIR = Path("downloads")
-DOWNLOAD_DIR.mkdir(exist_ok=True)
+DOWNLOAD_DIR = Path(os.getenv("DOWNLOAD_DIR", "downloads"))
+DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+youtube = YouTubeService(DOWNLOAD_DIR)
 
-download_locks = {}
 artwork_cache = {}
-global_lock = threading.Lock()
-
-
-def get_track_lock(key: str) -> threading.Lock:
-    with global_lock:
-        if key not in download_locks:
-            download_locks[key] = threading.Lock()
-        return download_locks[key]
-
-
-# =========================================================
-# PASO 3: LECTOR DE COOKIES EN BASE64 O TEXTO PLANO
-# =========================================================
-COOKIE_INITIALIZED = False
 
 
 def get_ydl_base_opts() -> dict:
-    opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "retries": 3,
-        "fragment_retries": 3,
-        "http_headers": {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/128.0.0.0 Safari/537.36"
-            ),
-            "Accept-Language": "es-PE,es;q=0.9,en;q=0.8",
-        },
-    }
+    return extraction_options()
 
-    # Verificar cookies de YouTube
-    cookies_b64 = os.getenv("YOUTUBE_COOKIES_B64", "").strip()
 
-    if cookies_b64:
-        cookies_path = Path("/tmp/musiksml-youtube-cookies.txt")
-
-        if not cookies_path.is_file():
-            cookies_data = base64.b64decode(
-                cookies_b64,
-                validate=True
-            )
-            cookies_path.write_bytes(cookies_data)
-            cookies_path.chmod(0o600)
-
-        opts["cookiefile"] = str(cookies_path)
-        print("[MusiksML] Cookies cargadas desde Railway.")
-
-    else:
-        cookies_file = os.getenv(
-            "YOUTUBE_COOKIES_FILE", ""
-        ).strip()
-
-        if cookies_file and Path(cookies_file).is_file():
-            opts["cookiefile"] = cookies_file
-            print("[MusiksML] Archivo de cookies encontrado.")
-        else:
-            print("[MusiksML] No se encontraron cookies.")
-
-    return opts
-
-# =========================================================
-# PASO 4: RUTA DE DIAGNÓSTICO DE COOKIES
-# =========================================================
 @app.get("/api/debug-cookies")
 def debug_cookies():
-    opts = get_ydl_base_opts()
-    cfile = opts.get("cookiefile")
-    if cfile and Path(cfile).exists():
-        content = Path(cfile).read_text(encoding="utf-8", errors="ignore")
-        lines = [l for l in content.splitlines() if l.strip() and not l.startswith("#")]
-        has_tabs = any("\t" in l for l in lines)
-        has_login = "LOGIN_INFO" in content or "SAPISID" in content
-        return {
-            "cookies_detected": True,
-            "total_cookie_lines": len(lines),
-            "valid_netscape_tabs": has_tabs,
-            "youtube_session_found": has_login
-        }
-    return {"cookies_detected": False}
+    return cookie_status()
+
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "release": "youtube-v2", **runtime_status()}
 
 
 class UrlRequest(BaseModel):
     url: str
 
 
-MAJOR_TO_CAMELOT = ["8B", "3B", "10B", "5B", "12B", "7B", "2B", "9B", "4B", "11B", "6B", "1B"]
-MINOR_TO_CAMELOT = ["5A", "12A", "7A", "2A", "9A", "4A", "11A", "6A", "1A", "8A", "3A", "10A"]
+MAJOR_TO_CAMELOT = [
+    "8B",
+    "3B",
+    "10B",
+    "5B",
+    "12B",
+    "7B",
+    "2B",
+    "9B",
+    "4B",
+    "11B",
+    "6B",
+    "1B",
+]
+MINOR_TO_CAMELOT = [
+    "5A",
+    "12A",
+    "7A",
+    "2A",
+    "9A",
+    "4A",
+    "11A",
+    "6A",
+    "1A",
+    "8A",
+    "3A",
+    "10A",
+]
 
 
 def analyze_real_audio_file(file_path: str):
@@ -161,8 +127,12 @@ def analyze_real_audio_file(file_path: str):
         chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
         chroma_vals = np.sum(chroma, axis=1)
 
-        maj_profile = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
-        min_profile = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
+        maj_profile = np.array(
+            [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
+        )
+        min_profile = np.array(
+            [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
+        )
 
         best_score = -1e9
         best_camelot = "8A"
@@ -192,13 +162,12 @@ async def analyze_local_mp3(file: UploadFile = File(...)):
 
     try:
         bpm, key = analyze_real_audio_file(tmp_path)
-        genre = "Reggaeton / Urbano" if bpm < 110 else ("Tech House" if bpm <= 126 else "Electrónica / Club")
-        return {
-            "filename": file.filename,
-            "bpm": bpm,
-            "key": key,
-            "genre": genre
-        }
+        genre = (
+            "Reggaeton / Urbano"
+            if bpm < 110
+            else ("Tech House" if bpm <= 126 else "Electrónica / Club")
+        )
+        return {"filename": file.filename, "bpm": bpm, "key": key, "genre": genre}
     finally:
         try:
             os.remove(tmp_path)
@@ -208,7 +177,12 @@ async def analyze_local_mp3(file: UploadFile = File(...)):
 
 @app.get("/api/artwork")
 def get_artwork(q: str = Query(...)):
-    clean_q = re.sub(r"\(.*?\)|\[.*?\]|official|video|audio|lyrics|hd|4k|feat\.|ft\.", " ", q, flags=re.I)
+    clean_q = re.sub(
+        r"\(.*?\)|\[.*?\]|official|video|audio|lyrics|hd|4k|feat\.|ft\.",
+        " ",
+        q,
+        flags=re.I,
+    )
     clean_q = " ".join(clean_q.split())
 
     if clean_q in artwork_cache:
@@ -218,11 +192,15 @@ def get_artwork(q: str = Query(...)):
         r = requests.get(
             "https://itunes.apple.com/search",
             params={"term": clean_q, "media": "music", "limit": 1},
-            timeout=4
+            timeout=4,
         )
         data = r.json()
         if data.get("resultCount", 0) > 0:
-            art = data["results"][0].get("artworkUrl100", "").replace("100x100bb", "600x600bb")
+            art = (
+                data["results"][0]
+                .get("artworkUrl100", "")
+                .replace("100x100bb", "600x600bb")
+            )
             if art:
                 artwork_cache[clean_q] = art
                 return {"url": art}
@@ -233,11 +211,13 @@ def get_artwork(q: str = Query(...)):
         r2 = requests.get(
             "https://api.deezer.com/search",
             params={"q": clean_q, "limit": 1},
-            timeout=4
+            timeout=4,
         )
         d2 = r2.json()
         if d2.get("data"):
-            art = d2["data"][0].get("album", {}).get("cover_xl") or d2["data"][0].get("album", {}).get("cover_big")
+            art = d2["data"][0].get("album", {}).get("cover_xl") or d2["data"][0].get(
+                "album", {}
+            ).get("cover_big")
             if art:
                 artwork_cache[clean_q] = art
                 return {"url": art}
@@ -249,25 +229,77 @@ def get_artwork(q: str = Query(...)):
 
 def estimate_initial_meta(title: str, artist: str, duration: int = 200):
     combined = f"{artist} {title}".lower()
-    camelot_keys = ["8A", "8B", "9A", "7A", "6A", "5A", "10B", "11A", "4A", "9B", "6B", "7B"]
+    camelot_keys = [
+        "8A",
+        "8B",
+        "9A",
+        "7A",
+        "6A",
+        "5A",
+        "10B",
+        "11A",
+        "4A",
+        "9B",
+        "6B",
+        "7B",
+    ]
     seed = sum(ord(c) for c in f"{artist}{title}")
     key = camelot_keys[seed % len(camelot_keys)]
 
-    if any(w in combined for w in [
-        "reggaeton", "urbano", "feid", "bad bunny", "rauw", "karol", "daddy", "chencho",
-        "plan b", "joan", "hector", "trebol", "noise", "wisin", "yandel", "don omar",
-        "tego", "zion", "lennox", "arcangel", "ñengo", "jowell", "randy", "ivy queen",
-        "tito", "bambino", "nicky jam", "dalmata", "baby rasta", "gringo", "perreo"
-    ]):
+    if any(
+        w in combined
+        for w in [
+            "reggaeton",
+            "urbano",
+            "feid",
+            "bad bunny",
+            "rauw",
+            "karol",
+            "daddy",
+            "chencho",
+            "plan b",
+            "joan",
+            "hector",
+            "trebol",
+            "noise",
+            "wisin",
+            "yandel",
+            "don omar",
+            "tego",
+            "zion",
+            "lennox",
+            "arcangel",
+            "ñengo",
+            "jowell",
+            "randy",
+            "ivy queen",
+            "tito",
+            "bambino",
+            "nicky jam",
+            "dalmata",
+            "baby rasta",
+            "gringo",
+            "perreo",
+        ]
+    ):
         bpm = 92 + (seed % 11)
         genre = "Reggaeton / Urbano"
-    elif any(w in combined for w in ["tech house", "fisher", "acraze", "cloonee", "pawsa", "house"]):
+    elif any(
+        w in combined
+        for w in ["tech house", "fisher", "acraze", "cloonee", "pawsa", "house"]
+    ):
         bpm = 124 + (seed % 5)
         genre = "Tech House"
-    elif any(w in combined for w in ["guaracha", "tribal", "aoki", "tiesto", "guetta", "edm", "electro"]):
+    elif any(
+        w in combined
+        for w in ["guaracha", "tribal", "aoki", "tiesto", "guetta", "edm", "electro"]
+    ):
         bpm = 128 + (seed % 5)
         genre = "Electrónica / Club"
-    elif any(w in combined for w in ["pop", "dua lipa", "weeknd", "bruno", "rihanna", "calvin"]):
+    elif any(
+        w in combined
+        for w in ["pop", "dua lipa", "weeknd", "bruno", "rihanna", "calvin"]
+    ):
         bpm = 116 + (seed % 12)
         genre = "Pop / Dance"
     else:
@@ -281,10 +313,9 @@ def parse_pathfinder_items(items_list):
     parsed = []
     for idx, item in enumerate(items_list):
         uid = item.get("uid", f"item_{idx}_{time.time()}")
-        track_wrapper = (
-            item.get("itemV2", {}).get("data", {})
-            or item.get("item", {}).get("data", {})
-        )
+        track_wrapper = item.get("itemV2", {}).get("data", {}) or item.get(
+            "item", {}
+        ).get("data", {})
         if not track_wrapper:
             continue
 
@@ -308,42 +339,52 @@ def parse_pathfinder_items(items_list):
         dur = int(dur_ms / 1000)
 
         cover_sources = (
-            track_wrapper.get("albumOfTrack", {})
-            .get("coverArt", {})
-            .get("sources", [])
+            track_wrapper.get("albumOfTrack", {}).get("coverArt", {}).get("sources", [])
         )
         cover_url = cover_sources[0].get("url", "") if cover_sources else ""
 
         bpm, key, genre = estimate_initial_meta(t_title, t_artist, dur)
-        parsed.append({
-            "uid": uid,
-            "title": t_title,
-            "artist": t_artist,
-            "duration": dur,
-            "bpm": bpm,
-            "key": key,
-            "genre": genre,
-            "source": "Spotify",
-            "search_query": f"{t_artist} - {t_title} official audio",
-            "thumbnail": cover_url
-        })
+        parsed.append(
+            {
+                "uid": uid,
+                "title": t_title,
+                "artist": t_artist,
+                "duration": dur,
+                "bpm": bpm,
+                "key": key,
+                "genre": genre,
+                "source": "Spotify",
+                "search_query": f"{t_artist} - {t_title} official audio",
+                "thumbnail": cover_url,
+            }
+        )
     return parsed
 
 
 def extract_with_playwright_headless(playlist_id: str):
     from playwright.sync_api import sync_playwright
 
-    captured_auth = {"bearer": None, "client_token": None, "sha256": None, "op_name": "fetchPlaylist"}
+    captured_auth = {
+        "bearer": None,
+        "client_token": None,
+        "sha256": None,
+        "op_name": "fetchPlaylist",
+    }
     initial_tracks = []
     playlist_name = "Spotify Playlist"
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+            ],
         )
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"
         )
         page = context.new_page()
 
@@ -358,7 +399,11 @@ def extract_with_playwright_headless(playlist_id: str):
                     post_json = json.loads(request.post_data or "{}")
                     op = post_json.get("operationName")
                     if op in ("fetchPlaylist", "fetchPlaylistContents"):
-                        sha = post_json.get("extensions", {}).get("persistedQuery", {}).get("sha256Hash")
+                        sha = (
+                            post_json.get("extensions", {})
+                            .get("persistedQuery", {})
+                            .get("sha256Hash")
+                        )
                         if sha:
                             captured_auth["sha256"] = sha
                             captured_auth["op_name"] = op
@@ -383,15 +428,21 @@ def extract_with_playwright_headless(playlist_id: str):
         page.on("request", handle_request)
         page.on("response", handle_response)
 
-        page.goto(f"https://open.spotify.com/playlist/{playlist_id}", wait_until="networkidle", timeout=25000)
-        page.wait_for_timeout(1200)
+        page.goto(
+            f"https://open.spotify.com/playlist/{playlist_id}",
+            wait_until="domcontentloaded",
+            timeout=20000,
+        )
+        deadline = time.monotonic() + 12
+        while not initial_tracks and time.monotonic() < deadline:
+            page.wait_for_timeout(200)
 
         clean_all_tracks = []
         if captured_auth["bearer"] and captured_auth["sha256"]:
             headers = {
                 "Authorization": captured_auth["bearer"],
                 "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0"
+                "User-Agent": "Mozilla/5.0",
             }
             if captured_auth["client_token"]:
                 headers["client-token"] = captured_auth["client_token"]
@@ -404,21 +455,28 @@ def extract_with_playwright_headless(playlist_id: str):
                         "uri": f"spotify:playlist:{playlist_id}",
                         "offset": offset,
                         "limit": limit,
-                        "enableWatchFeedEntrypoint": False
+                        "enableWatchFeedEntrypoint": False,
                     },
                     "operationName": captured_auth["op_name"],
                     "extensions": {
                         "persistedQuery": {
                             "version": 1,
-                            "sha256Hash": captured_auth["sha256"]
+                            "sha256Hash": captured_auth["sha256"],
                         }
-                    }
+                    },
                 }
-                r = requests.post("https://api-partner.spotify.com/pathfinder/v2/query", headers=headers, json=payload, timeout=10)
+                r = requests.post(
+                    "https://api-partner.spotify.com/pathfinder/v2/query",
+                    headers=headers,
+                    json=payload,
+                    timeout=10,
+                )
                 if r.status_code != 200:
                     break
                 res_data = r.json()
-                content = res_data.get("data", {}).get("playlistV2", {}).get("content", {})
+                content = (
+                    res_data.get("data", {}).get("playlistV2", {}).get("content", {})
+                )
                 total_count = content.get("totalCount", 0)
                 items = content.get("items", [])
                 if not items:
@@ -430,7 +488,11 @@ def extract_with_playwright_headless(playlist_id: str):
 
         browser.close()
 
-    final_source = clean_all_tracks if len(clean_all_tracks) >= len(initial_tracks) else initial_tracks
+    final_source = (
+        clean_all_tracks
+        if len(clean_all_tracks) >= len(initial_tracks)
+        else initial_tracks
+    )
 
     seen_uids = set()
     unique_tracks = []
@@ -466,24 +528,32 @@ def extract_full_spotify_playlist(url: str):
 
     if next_data and next_data.string:
         data = json.loads(next_data.string)
-        entity = data.get("props", {}).get("pageProps", {}).get("state", {}).get("data", {}).get("entity", {})
+        entity = (
+            data.get("props", {})
+            .get("pageProps", {})
+            .get("state", {})
+            .get("data", {})
+            .get("entity", {})
+        )
         playlist_name = entity.get("name", playlist_name)
         for idx, item in enumerate(entity.get("trackList", [])):
-            title = item.get("title", f"Track {idx+1}")
+            title = item.get("title", f"Track {idx + 1}")
             artist = item.get("subtitle", "Artista")
             duration = int(item.get("duration", 200000) / 1000)
             bpm, key, genre = estimate_initial_meta(title, artist, duration)
-            tracks_found.append({
-                "title": title,
-                "artist": artist,
-                "duration": duration,
-                "bpm": bpm,
-                "key": key,
-                "genre": genre,
-                "source": "Spotify",
-                "search_query": f"{artist} - {title} official audio",
-                "thumbnail": ""
-            })
+            tracks_found.append(
+                {
+                    "title": title,
+                    "artist": artist,
+                    "duration": duration,
+                    "bpm": bpm,
+                    "key": key,
+                    "genre": genre,
+                    "source": "Spotify",
+                    "search_query": f"{artist} - {title} official audio",
+                    "thumbnail": "",
+                }
+            )
 
     return playlist_name, tracks_found
 
@@ -492,7 +562,7 @@ def extract_full_spotify_playlist(url: str):
 def analyze_link(req: UrlRequest):
     url = req.url.strip()
 
-    if "spotify.com" in url:
+    if urlparse(url).hostname == "open.spotify.com":
         try:
             if "playlist/" in url:
                 playlist_name, tracks = extract_full_spotify_playlist(url)
@@ -500,8 +570,12 @@ def analyze_link(req: UrlRequest):
                     return {
                         "type": "spotify_playlist",
                         "title": playlist_name,
-                        "tracks": tracks
+                        "tracks": tracks,
                     }
+                raise HTTPException(
+                    status_code=404,
+                    detail="No se encontraron canciones disponibles. Comprueba que la playlist de Spotify sea pública.",
+                )
 
             headers = {"User-Agent": "Mozilla/5.0"}
             resp = requests.get(url, headers=headers, timeout=10)
@@ -511,179 +585,67 @@ def analyze_link(req: UrlRequest):
             og_img = soup.find("meta", property="og:image")
             if og_title:
                 t_name = og_title.get("content", "Track")
-                t_artist = og_desc.get("content", "").split("·")[0].strip() if og_desc else "Artista"
+                t_artist = (
+                    og_desc.get("content", "").split("·")[0].strip()
+                    if og_desc
+                    else "Artista"
+                )
                 cover = og_img.get("content", "") if og_img else ""
                 bpm, key, genre = estimate_initial_meta(t_name, t_artist, 200)
                 return {
                     "type": "spotify_single",
                     "title": t_name,
-                    "tracks": [{
-                        "title": t_name,
-                        "artist": t_artist,
-                        "duration": 200,
-                        "bpm": bpm,
-                        "key": key,
-                        "genre": genre,
-                        "source": "Spotify",
-                        "search_query": f"{t_artist} - {t_name} official audio",
-                        "thumbnail": cover
-                    }]
+                    "tracks": [
+                        {
+                            "title": t_name,
+                            "artist": t_artist,
+                            "duration": 200,
+                            "bpm": bpm,
+                            "key": key,
+                            "genre": genre,
+                            "source": "Spotify",
+                            "search_query": f"{t_artist} - {t_name} official audio",
+                            "thumbnail": cover,
+                        }
+                    ],
                 }
-            raise HTTPException(status_code=400, detail="No se pudo leer la lista de Spotify.")
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Error leyendo Spotify: {str(e)}")
-
-    ydl_opts = get_ydl_base_opts()
-    ydl_opts["extract_flat"] = "in_playlist"
+            raise HTTPException(
+                status_code=400, detail="No se pudo leer la lista de Spotify."
+            )
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(
+                status_code=502,
+                detail="No se pudo leer Spotify. Comprueba que la playlist sea pública e inténtalo de nuevo.",
+            )
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if "entries" in info:
-                tracks = []
-                for entry in list(info["entries"]):
-                    if not entry:
-                        continue
-                    vid_id = entry.get("id", "")
-                    title = entry.get("title", "Audio")
-                    uploader = entry.get("uploader", entry.get("channel", "YouTube"))
-                    dur = entry.get("duration") or 200
-                    vid_url = entry.get("url") or f"https://www.youtube.com/watch?v={vid_id}"
-                    thumb = f"https://i.ytimg.com/vi/{vid_id}/hqdefault.jpg" if vid_id else ""
-                    bpm, key, genre = estimate_initial_meta(title, uploader, dur)
-                    tracks.append({
-                        "title": title,
-                        "artist": uploader,
-                        "duration": dur,
-                        "bpm": bpm,
-                        "key": key,
-                        "genre": genre,
-                        "source": "YouTube",
-                        "url": vid_url,
-                        "thumbnail": thumb
-                    })
-                return {
-                    "type": "youtube_playlist",
-                    "title": info.get("title", "Playlist de YouTube"),
-                    "tracks": tracks
-                }
-            else:
-                vid_id = info.get("id", "")
-                title = info.get("title", "Audio")
-                uploader = info.get("uploader", "YouTube")
-                dur = info.get("duration") or 200
-                thumb = info.get("thumbnail") or (f"https://i.ytimg.com/vi/{vid_id}/hqdefault.jpg" if vid_id else "")
-                bpm, key, genre = estimate_initial_meta(title, uploader, dur)
-                return {
-                    "type": "youtube_single",
-                    "title": title,
-                    "tracks": [{
-                        "title": title,
-                        "artist": uploader,
-                        "duration": dur,
-                        "bpm": bpm,
-                        "key": key,
-                        "genre": genre,
-                        "source": "YouTube",
-                        "url": info.get("webpage_url", url),
-                        "thumbnail": thumb
-                    }]
-                }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"No se pudo procesar el link: {str(e)}")
+        result = youtube.analyze(url)
+        for track in result["tracks"]:
+            bpm, key, genre = estimate_initial_meta(
+                track["title"], track["artist"], track["duration"]
+            )
+            track.update(bpm=bpm, key=key, genre=genre, source="YouTube")
+        return result
+    except YouTubeError as error:
+        raise HTTPException(status_code=error.status, detail=error.detail()) from None
 
 
 @app.get("/api/media")
 def get_or_download_audio(
     url: Optional[str] = Query(None),
     query: Optional[str] = Query(None),
-    mode: str = Query("download")
+    mode: str = Query("download", pattern="^(download|inline|stream)$"),
 ):
-    target = url if url else f"ytsearch1:{query}"
-    if not target:
-        raise HTTPException(status_code=400, detail="Falta URL o búsqueda.")
-
-    lock = get_track_lock(target)
-    with lock:
-        try:
-            info_opts = get_ydl_base_opts()
-            info_opts["noplaylist"] = True
-
-            with yt_dlp.YoutubeDL(info_opts) as ydl_info:
-                info = ydl_info.extract_info(target, download=False)
-                if not info:
-                    raise HTTPException(status_code=404, detail="No se obtuvo respuesta de YouTube.")
-
-                if "entries" in info:
-                    entries = [e for e in info.get("entries", []) if e]
-                    if not entries:
-                        clean_q = re.sub(r"[^\w\s]", " ", query or target).strip()
-                        fallback_target = f"ytsearch1:{clean_q}"
-                        fallback_info = ydl_info.extract_info(fallback_target, download=False)
-                        entries = [e for e in fallback_info.get("entries", []) if e] if fallback_info else []
-
-                    if not entries:
-                        raise HTTPException(status_code=404, detail="No se encontró ningún video en YouTube.")
-                    info = entries[0]
-
-                vid_id = info.get("id", "audio")
-                raw_title = info.get("title", "track")
-
-            # ==========================================================
-            # CORRECCIÓN: Búsqueda exacta del ID para evitar a Bad Bunny
-            # ==========================================================
-            existing_mp3 = [f for f in DOWNLOAD_DIR.glob("*.mp3") if f"[{vid_id}]" in f.name]
-            existing_any = [
-                f for f in DOWNLOAD_DIR.iterdir()
-                if f.is_file() and f"[{vid_id}]" in f.name and not f.name.endswith(".part") and not f.name.endswith(".ytdl")
-            ]
-
-            final_path = None
-            if existing_mp3:
-                final_path = existing_mp3[0]
-            elif existing_any and not FFMPEG_PATH:
-                final_path = existing_any[0]
-
-            if not final_path or not final_path.exists():
-                out_tmpl = str(DOWNLOAD_DIR / "%(title).75B [%(id)s].%(ext)s")
-                ydl_opts = get_ydl_base_opts()
-                ydl_opts.update({
-                    "format": "bestaudio/bestaudio*/best/b",
-                    "outtmpl": out_tmpl,
-                    "noplaylist": True,
-                    "overwrites": False,
-                })
-                if FFMPEG_PATH:
-                    ydl_opts["ffmpeg_location"] = FFMPEG_PATH
-                    ydl_opts["postprocessors"] = [{
-                        "key": "FFmpegExtractAudio",
-                        "preferredcodec": "mp3",
-                        "preferredquality": "320",
-                    }]
-
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([info.get("webpage_url") or f"https://www.youtube.com/watch?v={vid_id}"])
-
-                # Verificamos de nuevo de forma estricta para agarrar la canción correcta
-                matches = [
-                    f for f in DOWNLOAD_DIR.iterdir()
-                    if f.is_file() and f"[{vid_id}]" in f.name and not f.name.endswith(".part") and not f.name.endswith(".ytdl")
-                ]
-                if not matches:
-                    raise HTTPException(status_code=500, detail="No se encontró el archivo procesado.")
-                final_path = matches[0]
-
-            clean_filename = re.sub(r'[\\/*?:"<>|]', "", raw_title).strip() + final_path.suffix
-            media_type = "audio/mpeg" if final_path.suffix.lower() == ".mp3" else "audio/webm"
-            disposition = "attachment" if mode == "download" else "inline"
-
-            return FileResponse(
-                path=final_path,
-                filename=clean_filename if mode == "download" else None,
-                media_type=media_type,
-                headers={"Content-Disposition": f'{disposition}; filename="{clean_filename}"'}
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error procesando audio: {str(e)}")
+    try:
+        path, title = youtube.audio(url=url, query=query)
+        filename = re.sub(r'[\\/*?:"<>|]', "", title).strip() + path.suffix
+        return FileResponse(
+            path=path,
+            filename=filename,
+            media_type=AUDIO_TYPES.get(path.suffix.lower(), "application/octet-stream"),
+            content_disposition_type="attachment" if mode == "download" else "inline",
+        )
+    except YouTubeError as error:
+        raise HTTPException(status_code=error.status, detail=error.detail()) from None

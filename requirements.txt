@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-yt-dlp
+yt-dlp[default]==2026.8.19
 requests
 beautifulsoup4
 imageio-ffmpeg
@@ -11,4 +11,4 @@ numpy
 python-multipart
 python-dotenv
 playwright
-bgutil-ytdlp-pot-provider
+bgutil-ytdlp-pot-provider==2.0.2

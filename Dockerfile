@@ -1,51 +1,26 @@
-FROM python:3.11-slim
-
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Dependencias del sistema
+FROM node:24-bookworm-slim AS provider
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libsndfile1 \
-    nodejs \
-    npm \
-    git \
-    curl \
-    unzip \
-    ca-certificates \
+    git ca-certificates python3 make g++ pkg-config libcairo2-dev libpango1.0-dev \
     && rm -rf /var/lib/apt/lists/*
-
-# Instalar Deno para los desafíos JavaScript de YouTube
-ENV DENO_INSTALL=/opt/deno
-ENV PATH="${DENO_INSTALL}/bin:${PATH}"
-
-RUN curl -fsSL https://deno.land/install.sh -o /tmp/install-deno.sh \
-    && sh /tmp/install-deno.sh \
-    && rm /tmp/install-deno.sh \
-    && deno --version
-
-WORKDIR /app
-
-# Servidor de PO Tokens
-RUN git clone --single-branch --branch 1.2.2 \
+RUN git clone --depth 1 --branch 2.0.2 \
     https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /pot-provider \
-    && cd /pot-provider/server \
-    && npm install \
-    && npx tsc
+    && test "$(git -C /pot-provider rev-parse HEAD)" = 26475e9d3665b972c4aeb83b4dbaafcf64b88438
+WORKDIR /pot-provider/server
+RUN npm ci --no-audit --no-fund && npx tsc && npm prune --omit=dev
+RUN npm install --prefix /opt/deno deno@2.9.6 && /opt/deno/node_modules/.bin/deno --version
 
-# Dependencias Python y yt-dlp
+FROM python:3.11-slim-bookworm
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg libsndfile1 libcairo2 libpango-1.0-0 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=provider /usr/local/bin/node /usr/local/bin/node
+COPY --from=provider /opt/deno/node_modules/deno/deno /usr/local/bin/deno
+COPY --from=provider /pot-provider/server /pot-provider/server
+WORKDIR /app
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir -U --pre "yt-dlp[default]"
-
-# Instalar Chromium para Playwright
-RUN playwright install --with-deps chromium
-
-# Copiar aplicación
+    && playwright install --with-deps chromium
 COPY . .
-
 RUN mkdir -p downloads
-
-# Iniciar POT y FastAPI
-CMD ["sh", "-c", "node /pot-provider/server/build/main.js --port 4416 & uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["python", "scripts/start.py"]
