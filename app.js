@@ -33,127 +33,189 @@ const CAMELOT_WHEEL = {
   "12B": ["12B", "11B", "1B", "12A"],
 };
 
+// =========================================================
+// DEDUCTOR DE GÉNEROS CORREGIDO (PRIORIDAD SALSA/BACHATA/CUMBIA/TRAP)
+// =========================================================
+const GENRE_RULES = [
+  {
+    genre: "Salsa",
+    bpmRange: [92, 106],
+    keywords: [
+      "hector lavoe", "willie colon", "marc anthony", "grupo niche", "joe arroyo",
+      "gilberto santa rosa", "victor manuelle", "frankie ruiz", "eddie santiago",
+      "maelо ruiz", "maelo ruiz", "jerry rivera", "tito nieves", "tito rojas",
+      "oscar d'leon", "oscar d leon", "ruben blades", "celia cruz", "dlG",
+      "adolescentes", "adolescent's", "la india", "fruko", "el gran combo",
+      "dimension latina", "cheo feliciano", "ismael rivera", "ray barretto",
+      "fania", "sonora ponceña", "richie ray", "bobby cruz", "willy garcia",
+      "guayacan", "hermanos lebron", "los titan", "tony vega", "rey ruiz",
+      "andy montañez", "cano estremera", "dan den", "charanga habanera",
+      "los van van", "alexander abreu", "havana d'primera", "chiquito team band",
+      "zaperoko", "daniela darcourt", "yahaira", "brunella torpoco", "salsa"
+    ]
+  },
+  {
+    genre: "Bachata / Merengue",
+    bpmRange: [118, 134],
+    keywords: [
+      "romeo santos", "aventura", "prince royce", "juan luis guerra", "zacarias ferreira",
+      "anthony santos", "frank reyes", "raulin rodriguez", "monchy", "alexandra",
+      "joe veras", "luis vargas", "kiko rodriguez", "elvis martinez", "toby love",
+      "xtreme", "optimo", "el chaval", "sergio vargas", "eddy herrera",
+      "wilfrido vargas", "hermanos rosario", "olgatanon", "olga tañon",
+      "elvis crespo", "proyecto uno", "ilegales", "fulanito", "bachata", "merengue"
+    ]
+  },
+  {
+    genre: "Cumbia / Tropical",
+    bpmRange: [94, 106],
+    keywords: [
+      "grupo 5", "agua marina", "armonia 10", "corazon serrano", "hermanos yaipen",
+      "caribeños", "marisol", "chacal", "los mirlos", "juaneco", "bareto",
+      "los angeles azules", "ke personajes", "damas gratis", "amar azul", "rafaga",
+      "rodrigo", "gilda", "los palmeras", "la nueva luna", "luck ra", "la t y la m",
+      "bm", "americo", "noche de brujas", "santaferia", "bronco", "selena",
+      "kumbia kings", "super lamas", "cañaveral", "cumbia", "chicha"
+    ]
+  },
+  {
+    genre: "Trap Latino",
+    bpmRange: [130, 146],
+    keywords: [
+      "anuel", "anuel aa", "bryant myers", "almighty", "noriel", "miky woodz",
+      "jon z", "ele a el dominio", "duki", "khea", "ysy a", "neo pistea", "c.r.o",
+      "eladio", "eladio carrion", "luar la l", "dei v", "omar courtz", "hades66",
+      "yvngchimi", "chimi", "neutro shorty", "big soto", "juhn", "darkiel",
+      "amenazzy", "youngchimi", "clarent", "pressure 9x19", "trap", "drill"
+    ]
+  },
+  {
+    genre: "Hip-Hop / Rap",
+    bpmRange: [84, 96],
+    keywords: [
+      "canserbero", "cancerbero", "lil supa", "akapellah", "apache", "nk profeta",
+      "al2", "aldeano", "los aldeanos", "kase.o", "violadores del verso", "nach",
+      "sfdk", "ayax", "prok", "foyone", "natos", "waor", "santa fe klan",
+      "cartel de santa", "gera mx", "aleman", "charles ans", "nanpa basico",
+      "aczino", "trueno", "wos", "acru", "bardero$", "2pac", "tupac", "eminem",
+      "drake", "kendrick lamar", "travis scott", "kanye", "50 cent", "snoop dogg",
+      "notorious b.i.g", "biggie", "nas", "jay-z", "ice cube", "dr. dre",
+      "wu-tang", "mobb deep", "j. cole", "future", "metro boomin", "21 savage",
+      "playboi carti", "asap rocky", "pop smoke", "central cee", "rap", "hip hop", "boom bap"
+    ]
+  },
+  {
+    genre: "Dembow",
+    bpmRange: [116, 124],
+    keywords: [
+      "el alfa", "chimbala", "rochy rd", "tokischa", "bulin 47", "angel dior",
+      "kaly ocho", "ceky viciny", "yailin", "larebelion", "dembow"
+    ]
+  },
+  {
+    genre: "Reggaeton Clásico",
+    bpmRange: [92, 98],
+    keywords: [
+      "daddy yankee", "don omar", "tego calderon", "wisin & yandel", "wisin y yandel",
+      "hector el father", "hector & tito", "hector y tito", "tito el bambino",
+      "plan b", "chencho corleone", "zion & lennox", "zion y lennox", "arcangel",
+      "de la ghetto", "jowell & randy", "jowell y randy", "ñengo flow", "baby rasta",
+      "ivy queen", "alexis & fido", "alexis y fido", "rakim", "ken-y", "r.k.m",
+      "angel y khriz", "trebol clan", "dalmata", "franco el gorila", "eddie dee",
+      "vico c", "voltio", "yaga & mackie", "magnate", "tony dize", "jadiel"
+    ]
+  },
+  {
+    genre: "Reggaeton",
+    bpmRange: [90, 100],
+    keywords: [
+      "bad bunny", "feid", "ferxxo", "karol g", "rauw alejandro", "myke towers",
+      "jhayco", "jhay cortez", "ozuna", "j balvin", "maluma", "nicky jam", "sech",
+      "mora", "quevedo", "saiko", "blessd", "ryan castro", "cris mj", "floyymenor",
+      "standly", "young miko", "bad gyal", "tainy", "lenny tavarez", "dalex",
+      "justin quiles", "manuel turizo", "danny ocean", "reggaeton", "perreo"
+    ]
+  },
+  {
+    genre: "R&B / Soul",
+    bpmRange: [82, 104],
+    keywords: [
+      "the weeknd", "sza", "frank ocean", "brent faiyaz", "daniel caesar",
+      "kali uchis", "chris brown", "usher", "partynextdoor", "bryson tiller",
+      "alicia keys", "bruno mars", "anderson .paak", "silk sonic", "r&b", "soul"
+    ]
+  },
+  {
+    genre: "Tech House",
+    bpmRange: [124, 128],
+    keywords: [
+      "fisher", "chris lake", "michael bibi", "pawsa", "cloonee", "john summit",
+      "dom dolla", "mau p", "acraze", "jamie jones", "marco carola", "paco osuna",
+      "wade", "the martinez brothers", "gorgon city", "tech house"
+    ]
+  },
+  {
+    genre: "Techno / Hard Techno",
+    bpmRange: [132, 145],
+    keywords: [
+      "charlotte de witte", "amelie lens", "adam beyer", "eli brown", "sara landry",
+      "nico moreno", "i hate models", "999999999", "indira paganotto", "boris brejcha",
+      "anyma", "tale of us", "artbat", "camelphat", "techno"
+    ]
+  },
+  {
+    genre: "Guaracha / Tribal",
+    bpmRange: [128, 132],
+    keywords: ["victor cardenas", "fumaratto", "marcela reyes", "guaracha", "tribal", "aleteo"]
+  },
+  {
+    genre: "EDM / House",
+    bpmRange: [122, 128],
+    keywords: [
+      "calvin harris", "david guetta", "tiesto", "martin garrix", "avicii", "zedd",
+      "alesso", "swedish house mafia", "skrillex", "fred again", "peggy gou",
+      "keinemusik", "black coffee", "meduza", "james hype", "alan walker",
+      "marshmello", "kygo", "daft punk", "disclosure", "rüfüs du sol"
+    ]
+  },
+  {
+    genre: "Rock / Indie",
+    bpmRange: [112, 136],
+    keywords: [
+      "arctic monkeys", "the strokes", "tame impala", "nirvana", "linkin park",
+      "queen", "metallica", "ac/dc", "guns n' roses", "red hot chili", "soda stereo",
+      "gustavo cerati", "enanitos verdes", "hombres g", "caifanes", "prisioneros",
+      "coldplay", "imagine dragons", "twenty one pilots", "the killers", "oasis",
+      "radiohead", "gorillaz", "the neighbourhood", "lana del rey"
+    ]
+  },
+  {
+    genre: "Pop / Dance",
+    bpmRange: [112, 124],
+    keywords: [
+      "dua lipa", "taylor swift", "lady gaga", "ariana grande", "billie eilish",
+      "olivia rodrigo", "sabrina carpenter", "justin bieber", "katy perry", "rihanna",
+      "shakira", "rosalia", "aitana", "tini", "emilia", "michael jackson",
+      "madonna", "harry styles", "adele", "ed sheeran", "charli xcx"
+    ]
+  }
+];
+
 function refineGenreAndMeta(track) {
-  const text = `${track.artist || ""} ${track.title || ""}`.toLowerCase();
+  const text = `${track.artist || ""} ${track.title || ""}`
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
   let genre = track.genre || "Crossover";
-  let bpm = Number(track.bpm) || 100;
+  let bpm = Number(track.bpm) || 102;
 
-  const rules = [
-    {
-      genre: "Trap Latino",
-      bpmRange: [130, 146],
-      keywords: [
-        "anuel", "bryant myers", "almighty", "noriel", "miky woodz", "jon z",
-        "duki", "khea", "ysy a", "neo pistea", "cro", "eladio", "luar la l",
-        "dei v", "omar courtz", "hades66", "yvngchimi", "trap", "drill"
-      ]
-    },
-    {
-      genre: "Hip-Hop / Rap",
-      bpmRange: [84, 96],
-      keywords: [
-        "canserbero", "cancerbero", "2pac", "tupac", "eminem", "drake", "kendrick",
-        "travis scott", "kanye", "50 cent", "snoop", "notorious", "biggie",
-        "santa fe klan", "cartel de santa", "akapellah", "apache", "gera mx",
-        "aleman", "trueno", "wos", "acru", "kase.o", "nach", "sfdk", "rap", "hip hop"
-      ]
-    },
-    {
-      genre: "Dembow",
-      bpmRange: [116, 124],
-      keywords: ["el alfa", "chimbala", "rochy rd", "tokischa", "bulin 47", "angel dior", "dembow"]
-    },
-    {
-      genre: "Reggaeton Clásico",
-      bpmRange: [92, 98],
-      keywords: [
-        "daddy yankee", "don omar", "tego", "wisin", "yandel", "plan b", "chencho",
-        "zion", "lennox", "arcangel", "de la ghetto", "jowell", "randy", "ñengo",
-        "baby rasta", "ivy queen", "alexis", "fido", "trebol clan", "dalmata", "hector"
-      ]
-    },
-    {
-      genre: "Reggaeton",
-      bpmRange: [90, 100],
-      keywords: [
-        "bad bunny", "feid", "ferxxo", "karol g", "rauw", "myke towers", "jhayco",
-        "ozuna", "j balvin", "maluma", "nicky jam", "sech", "mora", "quevedo",
-        "saiko", "blessd", "ryan castro", "cris mj", "young miko", "reggaeton", "perreo"
-      ]
-    },
-    {
-      genre: "R&B / Soul",
-      bpmRange: [82, 104],
-      keywords: [
-        "the weeknd", "sza", "frank ocean", "brent faiyaz", "daniel caesar",
-        "kali uchis", "chris brown", "usher", "partynextdoor", "r&b", "soul"
-      ]
-    },
-    {
-      genre: "Tech House",
-      bpmRange: [124, 128],
-      keywords: [
-        "fisher", "chris lake", "michael bibi", "pawsa", "cloonee", "john summit",
-        "dom dolla", "mau p", "acraze", "jamie jones", "marco carola", "wade", "tech house"
-      ]
-    },
-    {
-      genre: "Techno",
-      bpmRange: [132, 144],
-      keywords: [
-        "charlotte de witte", "amelie lens", "adam beyer", "eli brown", "sara landry",
-        "nico moreno", "i hate models", "boris brejcha", "anyma", "techno"
-      ]
-    },
-    {
-      genre: "Guaracha",
-      bpmRange: [128, 132],
-      keywords: ["victor cardenas", "fumaratto", "guaracha", "tribal", "aleteo"]
-    },
-    {
-      genre: "House / Dance",
-      bpmRange: [122, 128],
-      keywords: [
-        "calvin harris", "david guetta", "tiesto", "martin garrix", "avicii", "zedd",
-        "alesso", "fred again", "peggy gou", "keinemusik", "black coffee", "meduza"
-      ]
-    },
-    {
-      genre: "Cumbia",
-      bpmRange: [96, 105],
-      keywords: [
-        "grupo 5", "agua marina", "armonia 10", "corazon serrano", "angeles azules",
-        "ke personajes", "damas gratis", "amar azul", "luck ra", "cumbia"
-      ]
-    },
-    {
-      genre: "Salsa / Bachata",
-      bpmRange: [98, 124],
-      keywords: [
-        "romeo santos", "aventura", "prince royce", "marc anthony", "hector lavoe",
-        "willie colon", "grupo niche", "frankie ruiz", "eddie santiago", "salsa", "bachata"
-      ]
-    },
-    {
-      genre: "Rock / Indie",
-      bpmRange: [112, 136],
-      keywords: [
-        "arctic monkeys", "the strokes", "tame impala", "nirvana", "linkin park",
-        "queen", "metallica", "soda stereo", "cerati", "coldplay", "imagine dragons"
-      ]
-    },
-    {
-      genre: "Pop",
-      bpmRange: [112, 124],
-      keywords: [
-        "dua lipa", "taylor swift", "bruno mars", "lady gaga", "ariana grande",
-        "billie eilish", "olivia rodrigo", "rihanna", "shakira", "rosalia", "michael jackson"
-      ]
-    }
-  ];
-
-  for (const rule of rules) {
-    if (rule.keywords.some((kw) => text.includes(kw))) {
+  for (const rule of GENRE_RULES) {
+    const matched = rule.keywords.some((kw) => {
+      const cleanKw = kw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return text.includes(cleanKw);
+    });
+    if (matched) {
       genre = rule.genre;
       if (!track.isRealAudioAnalyzed) {
         const seed = Array.from(text).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
@@ -182,6 +244,7 @@ const state = {
   genreFilter: "ALL",
   sortBy: "recent",
   harmonicOnly: false,
+  libraryViewMode: "list",
   crossfadeSec: 6,
   isCrossfading: false,
 };
@@ -214,6 +277,7 @@ function saveLibrary() {
   localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(state.library));
   updateCounters();
   populateGenreSelect();
+  updateLibraryDashboard();
 }
 
 function saveQueue() {
@@ -230,13 +294,13 @@ function getCompatibilityInfo(ref, cand) {
   const bpmDiff = Math.abs((ref.bpm || 100) - (cand.bpm || 100));
 
   if (keyMatch && bpmDiff <= 6) {
-    return { compatible: true, label: "ARMÓNICA + TEMPO", score: 100 - bpmDiff };
+    return { compatible: true, label: "MEZCLA PERFECTA", score: 100 - bpmDiff };
   }
   if (keyMatch && bpmDiff <= 12) {
-    return { compatible: true, label: "CLAVE COMPATIBLE", score: 75 - bpmDiff };
+    return { compatible: true, label: "TONO COMPATIBLE", score: 75 - bpmDiff };
   }
   if (bpmDiff <= 3) {
-    return { compatible: true, label: "TEMPO EXACTO", score: 65 };
+    return { compatible: true, label: "MISMO TEMPO", score: 65 };
   }
   return { compatible: false, label: "", score: Math.max(0, 40 - bpmDiff) };
 }
@@ -257,10 +321,14 @@ async function playTrack(track, useCrossfade = false) {
   const refined = refineGenreAndMeta(track);
   state.currentTrack = refined;
 
+  // Actualizar el título de la pestaña del navegador
+  document.title = `▶ ${refined.title} — ${refined.artist} • musiksml`;
+
   const streamUrl = buildMediaUrl(refined, "inline");
   updatePlayerUI(refined);
   highlightPlayingRows();
   updateTransitionMonitor();
+  updateLibraryDashboard();
   if (state.harmonicOnly) renderLibrary();
 
   if (useCrossfade && !activeDeck.paused && state.crossfadeSec > 0) {
@@ -274,7 +342,7 @@ async function playTrack(track, useCrossfade = false) {
       await activeDeck.play();
       setPlayButtonIcon(true);
     } catch (_) {
-      showToast("Cargando stream...");
+      showToast("Cargando pista...");
     }
   }
 }
@@ -331,10 +399,13 @@ function bindActiveDeckEvents() {
     document.getElementById("currentTimeLabel").textContent = formatSeconds(cur);
     if (dur > 0 && isFinite(dur)) {
       document.getElementById("totalTimeLabel").textContent = formatSeconds(dur);
+      const pct = ((cur / dur) * 100).toFixed(1);
       const seek = document.getElementById("seekSlider");
-      if (!seek.matches(":active")) {
-        seek.value = ((cur / dur) * 100).toFixed(1);
-      }
+      if (!seek.matches(":active")) seek.value = pct;
+
+      const mobFill = document.getElementById("mobileProgressFill");
+      if (mobFill) mobFill.style.width = `${pct}%`;
+
       const remaining = dur - cur;
       if (
         state.crossfadeSec > 0 &&
@@ -394,13 +465,13 @@ async function triggerMp3Download(track, btn = null) {
     btn.disabled = true;
     btn.textContent = "...";
   }
-  showToast(`Descargando: ${refined.title}`);
+  showToast(`Preparando MP3: ${refined.title}`);
 
   try {
     const res = await fetch(buildMediaUrl(refined, "download"));
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || "Fallo en la descarga");
+      throw new Error(err.detail || "No se pudo descargar");
     }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -411,7 +482,7 @@ async function triggerMp3Download(track, btn = null) {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    showToast(`MP3 listo: ${refined.title}`);
+    showToast(`Descargado: ${refined.title}`);
   } catch (e) {
     showToast(`Error: ${e.message}`);
   } finally {
@@ -422,86 +493,84 @@ async function triggerMp3Download(track, btn = null) {
   }
 }
 
-function createTrackRowElement(track, index, context) {
+function createTrackCardElement(track, context) {
   const refined = refineGenreAndMeta(track);
-  const row = document.createElement("div");
-  row.className = "track-row";
-  row.dataset.id = refined.id;
+  const card = document.createElement("div");
+  card.className = "track-card";
+  card.dataset.id = refined.id;
 
   if (state.currentTrack && state.currentTrack.id === refined.id) {
-    row.classList.add("playing");
+    card.classList.add("playing");
   }
 
   const compat =
     state.currentTrack && state.currentTrack.id !== refined.id
       ? getCompatibilityInfo(state.currentTrack, refined)
-      : { compatible: false };
+      : { compatible: false, label: "" };
 
   const thumb =
     refined.thumbnail ||
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23181c28'/%3E%3C/svg%3E";
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' rx='8' fill='%231a1e2d'/%3E%3C/svg%3E";
 
-  row.innerHTML = `
-    <div class="cell-index">
-      <button class="row-play-trigger" title="Reproducir">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+  card.innerHTML = `
+    <div>
+      <button class="card-play-btn" title="Reproducir">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
           <polygon points="6 4 20 12 6 20 6 4"/>
         </svg>
       </button>
     </div>
 
-    <div class="cell-track">
-      <img class="track-thumb" src="${thumb}" alt="" loading="lazy" decoding="async" />
-      <div class="track-text">
-        <div class="track-title">${escapeHtml(refined.title)}</div>
-        <div class="track-artist">${escapeHtml(refined.artist)}</div>
-      </div>
+    <img class="card-thumb" src="${thumb}" alt="" loading="lazy" decoding="async" />
+
+    <div class="card-main">
+      <div class="card-title">${escapeHtml(refined.title)}</div>
+      <div class="card-artist">${escapeHtml(refined.artist)}</div>
     </div>
 
-    <div class="cell-genre">
-      <span class="genre-tag">${escapeHtml(refined.genre)}</span>
-      ${compat.compatible ? `<span class="harmonic-dot" title="${compat.label}"></span>` : ""}
+    <div class="card-genre-wrap">
+      <span class="genre-badge">${escapeHtml(refined.genre)}</span>
+      ${compat.compatible ? `<span class="compat-tag">${compat.label}</span>` : ""}
     </div>
 
-    <div class="cell-bpm">${refined.bpm}</div>
-
-    <div class="cell-key">
-      <span class="key-badge">${escapeHtml(refined.key)}</span>
+    <div class="card-metrics">
+      <span class="bpm-chip">${refined.bpm} BPM</span>
+      <span class="key-chip">${escapeHtml(refined.key)}</span>
     </div>
 
-    <div class="cell-actions">
+    <div class="card-actions">
       ${
         context !== "library"
-          ? `<button class="row-btn save-lib" title="Guardar en Colección">+ Col</button>`
-          : `<button class="row-btn del-lib" title="Eliminar">×</button>`
+          ? `<button class="card-btn save-lib" title="Guardar en Biblioteca">+ Biblio</button>`
+          : `<button class="card-btn del-lib" title="Quitar de Biblioteca">Quitar</button>`
       }
       ${
         context !== "queue"
-          ? `<button class="row-btn add-mix" title="Enviar a Automix">+ Mix</button>`
-          : `<button class="row-btn del-mix" title="Quitar">×</button>`
+          ? `<button class="card-btn add-mix" title="Enviar a Automix">+ Mix</button>`
+          : `<button class="card-btn del-mix" title="Quitar de la cola">&times;</button>`
       }
-      <button class="row-btn dl" title="Descargar MP3">MP3</button>
+      <button class="card-btn dl-btn" title="Descargar MP3">MP3</button>
     </div>
   `;
 
   if (!refined.thumbnail) {
-    fetchArtworkLazy(refined, row.querySelector(".track-thumb"));
+    fetchArtworkLazy(refined, card.querySelector(".card-thumb"));
   }
 
-  row.querySelector(".row-play-trigger").addEventListener("click", () => playTrack(refined, false));
-  row.querySelector(".dl").addEventListener("click", (e) =>
+  card.querySelector(".card-play-btn").addEventListener("click", () => playTrack(refined, false));
+  card.querySelector(".dl-btn").addEventListener("click", (e) =>
     triggerMp3Download(refined, e.currentTarget)
   );
 
-  const saveLib = row.querySelector(".save-lib");
+  const saveLib = card.querySelector(".save-lib");
   if (saveLib) {
     saveLib.addEventListener("click", () => {
       addTrackToLibrary(refined);
-      showToast("Añadida a Colección");
+      showToast("Guardada en Biblioteca");
     });
   }
 
-  const delLib = row.querySelector(".del-lib");
+  const delLib = card.querySelector(".del-lib");
   if (delLib) {
     delLib.addEventListener("click", () => {
       state.library = state.library.filter((t) => t.id !== refined.id);
@@ -510,15 +579,15 @@ function createTrackRowElement(track, index, context) {
     });
   }
 
-  const addMix = row.querySelector(".add-mix");
+  const addMix = card.querySelector(".add-mix");
   if (addMix) {
     addMix.addEventListener("click", () => {
       addTrackToQueue(refined);
-      showToast("En cola Automix");
+      showToast("Añadida a Automix");
     });
   }
 
-  const delMix = row.querySelector(".del-mix");
+  const delMix = card.querySelector(".del-mix");
   if (delMix) {
     delMix.addEventListener("click", () => {
       state.mixQueue = state.mixQueue.filter((t) => t.id !== refined.id);
@@ -527,7 +596,7 @@ function createTrackRowElement(track, index, context) {
     });
   }
 
-  return row;
+  return card;
 }
 
 function matchesGlobalFilter(t) {
@@ -544,29 +613,116 @@ function matchesGlobalFilter(t) {
 
 function renderImportedTracks() {
   const container = document.getElementById("importedTracksContainer");
+  const showcase = document.getElementById("playlistShowcase");
   const list = state.importedTracks.filter(matchesGlobalFilter);
 
-  document.getElementById("importTrackCount").textContent = list.length;
   const has = list.length > 0;
+  showcase.classList.toggle("hidden", !state.importedTracks.length);
   document.getElementById("saveAllToLibBtn").disabled = !has;
   document.getElementById("sendAllToMixBtn").disabled = !has;
   document.getElementById("downloadBatchBtn").disabled = !has;
 
+  if (state.importedTracks.length > 0) {
+    const avgBpm = Math.round(
+      state.importedTracks.reduce((acc, t) => acc + (t.bpm || 100), 0) / state.importedTracks.length
+    );
+    const firstThumb = state.importedTracks.find((t) => t.thumbnail)?.thumbnail || "";
+    if (firstThumb) document.getElementById("showcaseCover").src = firstThumb;
+    document.getElementById("showcaseStatsRow").innerHTML = `
+      <span>${list.length} pistas</span>
+      <span>•</span>
+      <span>Promedio ${avgBpm} BPM</span>
+    `;
+  }
+
   container.innerHTML = "";
   if (!has) {
-    container.innerHTML = `<div class="empty-box">Pega un enlace de Spotify o YouTube arriba para listar las pistas.</div>`;
+    container.innerHTML = `
+      <div class="empty-card">
+        Pega un link de Spotify o YouTube arriba para cargar las tarjetas de canciones.
+      </div>`;
     return;
   }
 
   const frag = document.createDocumentFragment();
-  list.forEach((t, i) => frag.appendChild(createTrackRowElement(t, i, "import")));
+  list.forEach((t) => frag.appendChild(createTrackCardElement(t, "import")));
   container.appendChild(frag);
 }
 
-function renderLibrary() {
-  const container = document.getElementById("libraryTracksContainer");
-  let list = state.library.filter(matchesGlobalFilter);
+function updateLibraryDashboard() {
+  document.getElementById("statTotalTracks").textContent = state.library.length;
+  if (!state.library.length) {
+    document.getElementById("statAvgBpm").textContent = "-- BPM";
+    document.getElementById("statTopGenre").textContent = "—";
+    document.getElementById("statCompatibleNow").textContent = "0";
+    return;
+  }
 
+  const avg = Math.round(
+    state.library.reduce((s, t) => s + (Number(t.bpm) || 100), 0) / state.library.length
+  );
+  document.getElementById("statAvgBpm").textContent = `${avg} BPM`;
+
+  const counts = {};
+  state.library.forEach((t) => {
+    counts[t.genre] = (counts[t.genre] || 0) + 1;
+  });
+  const topGenre = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
+  document.getElementById("statTopGenre").textContent = topGenre;
+
+  if (state.currentTrack) {
+    const compatCount = state.library.filter(
+      (t) =>
+        t.id !== state.currentTrack.id && getCompatibilityInfo(state.currentTrack, t).compatible
+    ).length;
+    document.getElementById("statCompatibleNow").textContent = String(compatCount);
+  } else {
+    document.getElementById("statCompatibleNow").textContent = "—";
+  }
+}
+
+function renderGenrePillsBar() {
+  const bar = document.getElementById("libraryGenreChips");
+  if (!bar) return;
+  const genres = Array.from(new Set(state.library.map((t) => t.genre))).sort();
+  if (!genres.length) {
+    bar.innerHTML = "";
+    return;
+  }
+
+  bar.innerHTML = "";
+  const allBtn = document.createElement("button");
+  allBtn.className = `genre-pill-filter ${state.genreFilter === "ALL" ? "active" : ""}`;
+  allBtn.textContent = `Todos (${state.library.length})`;
+  allBtn.onclick = () => {
+    state.genreFilter = "ALL";
+    document.getElementById("genreFilterSelect").value = "ALL";
+    renderLibrary();
+  };
+  bar.appendChild(allBtn);
+
+  genres.forEach((g) => {
+    const count = state.library.filter((t) => t.genre === g).length;
+    const b = document.createElement("button");
+    b.className = `genre-pill-filter ${state.genreFilter === g ? "active" : ""}`;
+    b.textContent = `${g} (${count})`;
+    b.onclick = () => {
+      state.genreFilter = g;
+      document.getElementById("genreFilterSelect").value = g;
+      renderLibrary();
+    };
+    bar.appendChild(b);
+  });
+}
+
+function renderLibrary() {
+  updateLibraryDashboard();
+  renderGenrePillsBar();
+
+  const container = document.getElementById("libraryTracksContainer");
+  container.classList.toggle("grid-view", state.libraryViewMode === "grid");
+
+  let list = state.library.filter(matchesGlobalFilter);
   if (state.genreFilter !== "ALL") list = list.filter((t) => t.genre === state.genreFilter);
   if (state.harmonicOnly && state.currentTrack) {
     list = list.filter(
@@ -582,12 +738,15 @@ function renderLibrary() {
 
   container.innerHTML = "";
   if (!list.length) {
-    container.innerHTML = `<div class="empty-box">Sin pistas en la colección.</div>`;
+    container.innerHTML = `
+      <div class="empty-card">
+        Tu biblioteca aún no tiene pistas con este filtro. Importa una playlist o guarda canciones con "+ Biblio".
+      </div>`;
     return;
   }
 
   const frag = document.createDocumentFragment();
-  list.forEach((t, i) => frag.appendChild(createTrackRowElement(t, i, "library")));
+  list.forEach((t) => frag.appendChild(createTrackCardElement(t, "library")));
   container.appendChild(frag);
 }
 
@@ -597,12 +756,15 @@ function renderQueue() {
 
   container.innerHTML = "";
   if (!list.length) {
-    container.innerHTML = `<div class="empty-box">Secuencia vacía. Añade pistas con "+ Mix".</div>`;
+    container.innerHTML = `
+      <div class="empty-card">
+        Tu cola Automix está vacía. Pulsa "+ Mix" en cualquier canción para armar tu sesión.
+      </div>`;
     return;
   }
 
   const frag = document.createDocumentFragment();
-  list.forEach((t, i) => frag.appendChild(createTrackRowElement(t, i, "queue")));
+  list.forEach((t) => frag.appendChild(createTrackCardElement(t, "queue")));
   container.appendChild(frag);
   updateTransitionMonitor();
 }
@@ -632,7 +794,7 @@ function sortQueueByHarmonicFlow() {
   state.mixQueue = sorted;
   saveQueue();
   renderQueue();
-  showToast("Secuencia ordenada por Camelot y BPM");
+  showToast("Cola ordenada por compatibilidad Camelot y BPM");
 }
 
 function addTrackToLibrary(track) {
@@ -662,7 +824,7 @@ function populateGenreSelect() {
   const select = document.getElementById("genreFilterSelect");
   const cur = select.value;
   const genres = Array.from(new Set(state.library.map((t) => t.genre))).sort();
-  select.innerHTML = `<option value="ALL">Géneros (${state.library.length})</option>`;
+  select.innerHTML = `<option value="ALL">Todos los géneros (${state.library.length})</option>`;
   genres.forEach((g) => {
     const opt = document.createElement("option");
     opt.value = g;
@@ -691,7 +853,7 @@ function updateTransitionMonitor() {
   const cur = state.currentTrack || state.mixQueue[0] || null;
   const next = getNextTrackInContext() || state.mixQueue[1] || null;
 
-  document.getElementById("deckATitle").textContent = cur ? cur.title : "Sin reproducción";
+  document.getElementById("deckATitle").textContent = cur ? cur.title : "Sin pista activa";
   document.getElementById("deckAMeta").textContent = cur ? cur.artist : "—";
   document.getElementById("deckAMetrics").textContent = cur
     ? `${cur.bpm} BPM • ${cur.key}`
@@ -708,12 +870,12 @@ function updateTransitionMonitor() {
     const compat = getCompatibilityInfo(cur, next);
     badge.textContent = compat.compatible ? compat.label : "CROSSFADE ACTIVO";
   } else {
-    badge.textContent = "STANDBY";
+    badge.textContent = "AUTOMIX READY";
   }
 }
 
 function highlightPlayingRows() {
-  document.querySelectorAll(".track-row").forEach((r) => {
+  document.querySelectorAll(".track-card").forEach((r) => {
     r.classList.toggle("playing", Boolean(state.currentTrack && r.dataset.id === state.currentTrack.id));
   });
 }
@@ -769,10 +931,10 @@ document.addEventListener("DOMContentLoaded", () => {
   renderLibrary();
   renderQueue();
 
-  const navLinks = document.querySelectorAll(".rail-link");
+  const navLinks = document.querySelectorAll(".side-link");
   const switchView = (viewId) => {
     navLinks.forEach((b) => b.classList.toggle("active", b.dataset.view === viewId));
-    document.querySelectorAll(".view-pane").forEach((p) => {
+    document.querySelectorAll(".view-section").forEach((p) => {
       p.classList.toggle("active", p.id === viewId);
     });
     document.getElementById("mainScrollArea").scrollTop = 0;
@@ -780,34 +942,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
   navLinks.forEach((btn) => btn.addEventListener("click", () => switchView(btn.dataset.view)));
   document.getElementById("brandHome").addEventListener("click", () => switchView("importView"));
+  document.getElementById("mobileBrandHome").addEventListener("click", () => switchView("importView"));
 
-  // Atajos de teclado de estudio (Ctrl+K, Espacio, 1-2-3)
-  window.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      document.getElementById("globalFilterInput").focus();
-    }
-    const tag = document.activeElement ? document.activeElement.tagName : "";
-    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+  // Manejo de input de URL y pegado compatible con móviles (iOS/Android)
+  const urlInput = document.getElementById("urlInput");
+  const clearUrlBtn = document.getElementById("clearUrlBtn");
 
-    if (e.code === "Space") {
-      e.preventDefault();
-      document.getElementById("playPauseBtn").click();
-    } else if (e.key === "1") switchView("importView");
-    else if (e.key === "2") switchView("libraryView");
-    else if (e.key === "3") switchView("mixView");
+  urlInput.addEventListener("input", () => {
+    clearUrlBtn.classList.toggle("hidden", !urlInput.value);
+  });
+
+  clearUrlBtn.addEventListener("click", () => {
+    urlInput.value = "";
+    clearUrlBtn.classList.add("hidden");
+    urlInput.focus();
   });
 
   document.getElementById("pasteClipboardBtn").addEventListener("click", async () => {
+    urlInput.focus();
     try {
-      const t = await navigator.clipboard.readText();
-      if (t) document.getElementById("urlInput").value = t.trim();
-    } catch (_) {}
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          urlInput.value = text.trim();
+          clearUrlBtn.classList.remove("hidden");
+          showToast("Enlace pegado");
+          return;
+        }
+      }
+      throw new Error("Clipboard fallback");
+    } catch (_) {
+      // En móviles donde el navegador bloquea readText, seleccionamos el campo para que salga el globo "Pegar"
+      urlInput.focus();
+      urlInput.select();
+      showToast("Mantén presionado el campo y toca 'Pegar'");
+    }
   });
 
   document.getElementById("importForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const url = document.getElementById("urlInput").value.trim();
+    const url = urlInput.value.trim();
     if (!url) return;
 
     const btn = document.getElementById("analyzeBtn");
@@ -817,7 +991,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.disabled = true;
     spinner.classList.remove("hidden");
     banner.classList.remove("hidden", "error");
-    banner.textContent = "Sincronizando metadatos...";
+    banner.textContent = "Extrayendo canciones y analizando géneros...";
 
     try {
       const res = await fetch(`${API_BASE}/api/analyze`, {
@@ -829,9 +1003,12 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw new Error(data.detail || "No se pudo leer el enlace");
 
       state.importedTracks = (data.tracks || []).map(refineGenreAndMeta);
-      document.getElementById("currentImportTitle").textContent = data.title || "Resultados";
+      document.getElementById("currentImportTitle").textContent = data.title || "Playlist cargada";
+      document.getElementById("showcaseSourceTag").textContent =
+        url.includes("spotify") ? "SPOTIFY PLAYLIST" : "YOUTUBE MEDIA";
       banner.classList.add("hidden");
       renderImportedTracks();
+      showToast(`${state.importedTracks.length} canciones listas`);
     } catch (err) {
       banner.classList.add("error");
       banner.textContent = err.message;
@@ -844,12 +1021,13 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("saveAllToLibBtn").addEventListener("click", () => {
     state.importedTracks.forEach(addTrackToLibrary);
     renderLibrary();
-    showToast(`${state.importedTracks.length} pistas añadidas a Colección`);
+    showToast(`${state.importedTracks.length} pistas guardadas en Biblioteca`);
   });
 
   document.getElementById("sendAllToMixBtn").addEventListener("click", () => {
     state.importedTracks.forEach(addTrackToQueue);
     switchView("mixView");
+    showToast("Enviadas a Automix");
   });
 
   document.getElementById("downloadBatchBtn").addEventListener("click", async () => {
@@ -871,10 +1049,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const meta = await r.json();
         const item = refineGenreAndMeta({
           title: file.name.replace(/\.[^/.]+$/, ""),
-          artist: "Local Audio",
-          bpm: meta.bpm || 124,
+          artist: "Archivo Local",
+          bpm: meta.bpm || 120,
           key: meta.key || "8A",
-          genre: meta.genre || "Local",
+          genre: meta.genre || "Audio Local",
           localBlobUrl: URL.createObjectURL(file),
           isRealAudioAnalyzed: true,
         });
@@ -916,6 +1094,20 @@ document.addEventListener("DOMContentLoaded", () => {
     renderLibrary();
   });
 
+  document.getElementById("viewListBtn").addEventListener("click", (e) => {
+    state.libraryViewMode = "list";
+    e.currentTarget.classList.add("active");
+    document.getElementById("viewGridBtn").classList.remove("active");
+    renderLibrary();
+  });
+
+  document.getElementById("viewGridBtn").addEventListener("click", (e) => {
+    state.libraryViewMode = "grid";
+    e.currentTarget.classList.add("active");
+    document.getElementById("viewListBtn").classList.remove("active");
+    renderLibrary();
+  });
+
   const harmBtn = document.getElementById("harmonicMatchToggleBtn");
   harmBtn.addEventListener("click", () => {
     state.harmonicOnly = !state.harmonicOnly;
@@ -925,7 +1117,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("clearLibraryBtn").addEventListener("click", () => {
     if (!state.library.length) return;
-    if (confirm("¿Vaciar toda la colección?")) {
+    if (confirm("¿Vaciar todas las pistas de tu Biblioteca?")) {
       state.library = [];
       saveLibrary();
       renderLibrary();
@@ -942,9 +1134,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const cfSlider = document.getElementById("crossfadeSlider");
   cfSlider.addEventListener("input", () => {
     state.crossfadeSec = Number(cfSlider.value);
-    const txt = state.crossfadeSec === 0 ? "CUT" : `${state.crossfadeSec}.0s`;
+    const txt = state.crossfadeSec === 0 ? "OFF" : `${state.crossfadeSec}s`;
     document.getElementById("crossfadeLabel").textContent = txt;
-    document.getElementById("automixStatePill").textContent = `XFADE ${txt}`;
+    document.getElementById("automixStatePill").textContent = `AUTOMIX ${txt}`;
   });
 
   document.getElementById("playPauseBtn").addEventListener("click", () => {
