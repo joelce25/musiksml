@@ -1,13 +1,8 @@
 import os
 import re
-import hmac
 import time
 import json
-import base64
-import hashlib
-import struct
 import shutil
-import asyncio
 import tempfile
 import threading
 from pathlib import Path
@@ -24,9 +19,6 @@ import numpy as np
 from dotenv import load_dotenv
 
 load_dotenv()
-
-DEFAULT_SPOTIFY_CLIENT_ID = "d04495cb61d649f9910929fe60fee796"
-DEFAULT_SPOTIFY_CLIENT_SECRET = "6416b56ed57241d7977040f599104050"
 
 try:
     import librosa
@@ -53,14 +45,27 @@ app.add_middleware(
 
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
+
+download_locks = {}
+artwork_cache = {}
+global_lock = threading.Lock()
+
+
+def get_track_lock(key: str) -> threading.Lock:
+    with global_lock:
+        if key not in download_locks:
+            download_locks[key] = threading.Lock()
+        return download_locks[key]
+
+
 def get_ydl_base_opts() -> dict:
+    """Configuración anti-bloqueo con soporte de cookies y clientes compatibles sin error de formato."""
     raw_cookies = os.getenv("YOUTUBE_COOKIES", "").strip()
     cookie_file = Path("/tmp/youtube_cookies.txt") if os.name != "nt" else Path("cookies.txt")
     has_valid_cookies = False
 
     if raw_cookies:
         try:
-            # Reconstruir saltos de línea por si Railway los escapó
             formatted_cookies = raw_cookies.replace("\\n", "\n")
             cookie_file.write_text(formatted_cookies, encoding="utf-8")
             has_valid_cookies = True
@@ -80,33 +85,20 @@ def get_ydl_base_opts() -> dict:
     }
 
     if has_valid_cookies:
-        # Con cookies activas usamos web + tv para que yt-dlp envíe la sesión autenticada
         opts["cookiefile"] = str(cookie_file)
         opts["extractor_args"] = {
             "youtube": {
-                "player_client": ["web", "tv"]
+                "player_client": ["tv", "web_creator", "mweb", "web"]
             }
         }
     else:
-        # Sin cookies intentamos tv_embedded y android_vr
         opts["extractor_args"] = {
             "youtube": {
-                "player_client": ["tv_embedded", "android_vr", "mweb"]
+                "player_client": ["tv", "android_vr", "ios", "mweb"]
             }
         }
 
     return opts
-
-download_locks = {}
-artwork_cache = {}
-global_lock = threading.Lock()
-
-
-def get_track_lock(key: str) -> threading.Lock:
-    with global_lock:
-        if key not in download_locks:
-            download_locks[key] = threading.Lock()
-        return download_locks[key]
 
 
 class UrlRequest(BaseModel):
@@ -118,7 +110,6 @@ MINOR_TO_CAMELOT = ["5A", "12A", "7A", "2A", "9A", "4A", "11A", "6A", "1A", "8A"
 
 
 def analyze_real_audio_file(file_path: str):
-    """Calcula el BPM matemático real y la clave Camelot con Librosa DSP."""
     if not HAS_LIBROSA:
         return 124, "8A"
     try:
@@ -256,35 +247,45 @@ def estimate_initial_meta(title: str, artist: str, duration: int = 200):
 
 
 def parse_pathfinder_items(items_list):
-    """Convierte los items del JSON interno Pathfinder v2 de Spotify a nuestro formato."""
     parsed = []
-    for item in items_list:
-        track_Wrapper = item.get("itemV2", {}).get("data", {}) or item.get("item", {}).get("data", {})
-        if not track_Wrapper:
+    for idx, item in enumerate(items_list):
+        uid = item.get("uid", f"item_{idx}_{time.time()}")
+        track_wrapper = (
+            item.get("itemV2", {}).get("data", {})
+            or item.get("item", {}).get("data", {})
+        )
+        if not track_wrapper:
             continue
-        t_title = track_Wrapper.get("name")
+
+        t_title = track_wrapper.get("name")
         if not t_title:
             continue
 
-        # Extraer artistas
-        artists_items = track_Wrapper.get("artists", {}).get("items", [])
-        artists_names = [a.get("profile", {}).get("name", "") for a in artists_items if a.get("profile", {}).get("name")]
+        artists_items = track_wrapper.get("artists", {}).get("items", [])
+        artists_names = [
+            a.get("profile", {}).get("name", "")
+            for a in artists_items
+            if a.get("profile", {}).get("name")
+        ]
         t_artist = ", ".join(artists_names) or "Artista"
 
-        # Extraer duración
         dur_ms = (
-            track_Wrapper.get("trackDuration", {}).get("totalMilliseconds")
-            or track_Wrapper.get("duration", {}).get("totalMilliseconds")
+            track_wrapper.get("trackDuration", {}).get("totalMilliseconds")
+            or track_wrapper.get("duration", {}).get("totalMilliseconds")
             or 200000
         )
         dur = int(dur_ms / 1000)
 
-        # Extraer portada oficial del álbum
-        cover_sources = track_Wrapper.get("albumOfTrack", {}).get("coverArt", {}).get("sources", [])
+        cover_sources = (
+            track_wrapper.get("albumOfTrack", {})
+            .get("coverArt", {})
+            .get("sources", [])
+        )
         cover_url = cover_sources[0].get("url", "") if cover_sources else ""
 
         bpm, key, genre = estimate_initial_meta(t_title, t_artist, dur)
         parsed.append({
+            "uid": uid,
             "title": t_title,
             "artist": t_artist,
             "duration": dur,
@@ -299,20 +300,19 @@ def parse_pathfinder_items(items_list):
 
 
 def extract_with_playwright_headless(playlist_id: str):
-    """
-    Usa Chromium invisible para abrir la playlist de Spotify, capturar el token y el hash
-    Pathfinder real de la sesión y pedir TODAS las canciones (148, 500, 1000+) de un solo golpe.
-    """
     from playwright.sync_api import sync_playwright
 
-    captured_auth = {"bearer": None, "client_token": None, "sha256": None}
-    all_tracks = []
+    captured_auth = {"bearer": None, "client_token": None, "sha256": None, "op_name": "fetchPlaylist"}
+    initial_tracks = []
     playlist_name = "Spotify Playlist"
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        )
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
         )
         page = context.new_page()
 
@@ -325,10 +325,12 @@ def extract_with_playwright_headless(playlist_id: str):
                     captured_auth["client_token"] = headers["client-token"]
                 try:
                     post_json = json.loads(request.post_data or "{}")
-                    if post_json.get("operationName") in ("fetchPlaylist", "fetchPlaylistContents"):
+                    op = post_json.get("operationName")
+                    if op in ("fetchPlaylist", "fetchPlaylistContents"):
                         sha = post_json.get("extensions", {}).get("persistedQuery", {}).get("sha256Hash")
                         if sha:
                             captured_auth["sha256"] = sha
+                            captured_auth["op_name"] = op
                 except Exception:
                     pass
 
@@ -343,7 +345,7 @@ def extract_with_playwright_headless(playlist_id: str):
                     content = pl_v2.get("content", {})
                     items = content.get("items", [])
                     if items:
-                        all_tracks.extend(parse_pathfinder_items(items))
+                        initial_tracks.extend(parse_pathfinder_items(items))
                 except Exception:
                     pass
 
@@ -351,11 +353,10 @@ def extract_with_playwright_headless(playlist_id: str):
         page.on("response", handle_response)
 
         page.goto(f"https://open.spotify.com/playlist/{playlist_id}", wait_until="networkidle", timeout=25000)
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(1200)
 
-        # Si la playlist tiene más canciones de las cargadas en la primera vista, pedimos el resto con el mismo token y hash capturados
+        clean_all_tracks = []
         if captured_auth["bearer"] and captured_auth["sha256"]:
-            offset = len(all_tracks)
             headers = {
                 "Authorization": captured_auth["bearer"],
                 "Content-Type": "application/json",
@@ -364,14 +365,17 @@ def extract_with_playwright_headless(playlist_id: str):
             if captured_auth["client_token"]:
                 headers["client-token"] = captured_auth["client_token"]
 
+            offset = 0
+            limit = 100
             while offset < 2000:
                 payload = {
                     "variables": {
                         "uri": f"spotify:playlist:{playlist_id}",
                         "offset": offset,
-                        "limit": 300
+                        "limit": limit,
+                        "enableWatchFeedEntrypoint": False
                     },
-                    "operationName": "fetchPlaylistContents",
+                    "operationName": captured_auth["op_name"],
                     "extensions": {
                         "persistedQuery": {
                             "version": 1,
@@ -381,53 +385,39 @@ def extract_with_playwright_headless(playlist_id: str):
                 }
                 r = requests.post("https://api-partner.spotify.com/pathfinder/v2/query", headers=headers, json=payload, timeout=10)
                 if r.status_code != 200:
-                    # Probar con operationName fetchPlaylist si el hash pertenece a la operación principal
-                    payload["operationName"] = "fetchPlaylist"
-                    payload["variables"]["enableWatchFeedEntrypoint"] = False
-                    r = requests.post("https://api-partner.spotify.com/pathfinder/v2/query", headers=headers, json=payload, timeout=10)
-                    if r.status_code != 200:
-                        break
-
+                    break
                 res_data = r.json()
-                items = res_data.get("data", {}).get("playlistV2", {}).get("content", {}).get("items", [])
+                content = res_data.get("data", {}).get("playlistV2", {}).get("content", {})
+                total_count = content.get("totalCount", 0)
+                items = content.get("items", [])
                 if not items:
                     break
-                batch = parse_pathfinder_items(items)
-                if not batch:
-                    break
-                all_tracks.extend(batch)
-                if len(items) < 100:
-                    break
+                clean_all_tracks.extend(parse_pathfinder_items(items))
                 offset += len(items)
-
-        # Si aún faltan pistas por cargar mediante scroll en el DOM
-        if len(all_tracks) <= 100:
-            for _ in range(8):
-                page.mouse.wheel(0, 4000)
-                page.wait_for_timeout(600)
+                if total_count and offset >= total_count:
+                    break
 
         browser.close()
 
-    # Eliminar posibles duplicados manteniendo el orden exacto de la playlist
-    seen = set()
+    final_source = clean_all_tracks if len(clean_all_tracks) >= len(initial_tracks) else initial_tracks
+
+    seen_uids = set()
     unique_tracks = []
-    for t in all_tracks:
-        k = f"{t['title']}|{t['artist']}"
-        if k not in seen:
-            seen.add(k)
+    for t in final_source:
+        uid = t.get("uid")
+        if uid not in seen_uids:
+            seen_uids.add(uid)
             unique_tracks.append(t)
 
     return playlist_name, unique_tracks
 
 
 def extract_full_spotify_playlist(url: str):
-    """Extrae TODAS las canciones de una playlist de Spotify (148, 500+) superando el bloqueo de Feb 2026."""
     match = re.search(r"playlist/([a-zA-Z0-9]+)", url)
     playlist_id = match.group(1) if match else None
     if not playlist_id:
         raise ValueError("URL de playlist de Spotify inválida.")
 
-    # 1. Extraer con Playwright Headless (Supera el límite de 100 y el bloqueo 403 de Febrero 2026)
     try:
         playlist_name, tracks = extract_with_playwright_headless(playlist_id)
         if len(tracks) > 0:
@@ -435,7 +425,6 @@ def extract_full_spotify_playlist(url: str):
     except Exception as e:
         print(f"Aviso Playwright: {e}")
 
-    # 2. Respaldo por embed si Playwright no está instalado aún
     headers = {"User-Agent": "Mozilla/5.0"}
     embed_url = f"https://open.spotify.com/embed/playlist/{playlist_id}"
     resp = requests.get(embed_url, headers=headers, timeout=12)
@@ -513,11 +502,9 @@ def analyze_link(req: UrlRequest):
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Error leyendo Spotify: {str(e)}")
 
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "extract_flat": "in_playlist",
-    }
+    ydl_opts = get_ydl_base_opts()
+    ydl_opts["extract_flat"] = "in_playlist"
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -614,7 +601,7 @@ def get_or_download_audio(
                 out_tmpl = str(DOWNLOAD_DIR / "%(title).75B [%(id)s].%(ext)s")
                 ydl_opts = get_ydl_base_opts()
                 ydl_opts.update({
-                    "format": "ba/b",
+                    "format": "bestaudio/bestaudio*/best/b",
                     "outtmpl": out_tmpl,
                     "noplaylist": True,
                     "overwrites": False,
