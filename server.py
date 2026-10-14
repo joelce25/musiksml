@@ -65,42 +65,27 @@ def get_track_lock(key: str) -> threading.Lock:
 COOKIE_INITIALIZED = False
 
 def get_ydl_base_opts() -> dict:
-    """Configuración para Railway usando cookies de navegador y cliente web estándar."""
-    global COOKIE_INITIALIZED
-    raw_cookies = os.getenv("YOUTUBE_COOKIES", "").strip()
-    cookie_file = Path("/tmp/youtube_cookies.txt") if os.name != "nt" else Path("cookies_runtime.txt")
-
-    if raw_cookies and not COOKIE_INITIALIZED:
-        try:
-            if not raw_cookies.startswith("#"):
-                cookie_file.write_bytes(base64.b64decode(raw_cookies))
-            else:
-                formatted = raw_cookies.replace("\\n", "\n").replace("\\t", "\t")
-                cookie_file.write_text(formatted, encoding="utf-8")
-            COOKIE_INITIALIZED = True
-        except Exception as e:
-            print(f"Error procesando cookies: {e}")
-
     opts = {
         "quiet": True,
         "no_warnings": True,
         "nocheckcertificate": True,
+        "retries": 3,
+        "fragment_retries": 3,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "mweb"],
+                "player_skip": ["webpage", "configs"]
+            }
+        },
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+            "User-Agent": "com.google.android.youtube/19.29.35 (Linux; U; Android 14; es_PE; Pixel 7 Pro Build/UQ1A.240105.004)",
+            "Accept-Language": "es-PE,es;q=0.9,en;q=0.8",
         }
     }
 
-    if cookie_file.exists() and cookie_file.stat().st_size > 100:
-        opts["cookiefile"] = str(cookie_file)
-        # Al tener cookies de navegador web, dejamos que yt-dlp use el cliente web estándar
-    else:
-        # Fallback sin cookies
-        opts["extractor_args"] = {
-            "youtube": {
-                "player_client": ["android", "ios"]
-            }
-        }
+    proxy_url = os.getenv("YOUTUBE_PROXY", "").strip()
+    if proxy_url:
+        opts["proxy"] = proxy_url
 
     return opts
 
