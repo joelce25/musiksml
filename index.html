@@ -2,372 +2,340 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>musiksml</title>
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-
-  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
-  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
-
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="ambient-glow" id="ambientGlow"></div>
 
-  <div class="shell">
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">
-          <span></span><span></span><span></span><span></span>
+  <div class="workspace">
+    <!-- SIDEBAR COMPACTA DE ESTUDIO -->
+    <aside class="rail">
+      <div class="rail-header" id="brandHome">
+        <div class="logo-mark">
+          <svg viewBox="0 0 28 28" fill="none">
+            <rect x="2" y="10" width="3.5" height="8" rx="1.75" fill="currentColor"/>
+            <rect x="8" y="5" width="3.5" height="18" rx="1.75" fill="currentColor"/>
+            <rect x="14" y="8" width="3.5" height="12" rx="1.75" fill="#10B981"/>
+            <rect x="20" y="3" width="3.5" height="22" rx="1.75" fill="currentColor"/>
+          </svg>
         </div>
-        <span class="brand-name">musiksml</span>
+        <span class="logo-type">musiksml</span>
       </div>
 
-      <nav class="menu">
-        <button type="button" class="menu-item active" data-view="view-ingest">
-          <i class="ph ph-arrow-fat-lines-down"></i>
-          <span>Importar & Descargar</span>
+      <nav class="rail-nav">
+        <button class="rail-link active" data-view="importView">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 3v12m0 0l4-4m-4 4l-4-4"/>
+            <path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+          </svg>
+          <span>Importar</span>
+          <kbd class="rail-kbd">1</kbd>
         </button>
-        <button type="button" class="menu-item" data-view="view-crate">
-          <i class="ph ph-playlist"></i>
-          <span>Biblioteca & Setlist</span>
-          <span class="count-pill" id="crate-counter">0</span>
+
+        <button class="rail-link" data-view="libraryView">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="3" y="4" width="18" height="16" rx="2"/>
+            <line x1="7" y1="8" x2="17" y2="8"/>
+            <line x1="7" y1="12" x2="17" y2="12"/>
+            <line x1="7" y1="16" x2="13" y2="16"/>
+          </svg>
+          <span>Colección</span>
+          <span class="rail-count" id="libCountBadge">0</span>
         </button>
-        <button type="button" class="menu-item" data-view="view-curator">
-          <i class="ph ph-waveform"></i>
-          <span>Curador IA & Flujo</span>
-        </button>
-        <button type="button" class="menu-item" data-view="view-studio">
-          <i class="ph ph-sliders-horizontal"></i>
-          <span>Utilidades de Cabina</span>
+
+        <button class="rail-link" data-view="mixView">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M2 12h4l3-7 4 14 3-7h6"/>
+          </svg>
+          <span>Automix</span>
+          <span class="rail-count live" id="queueCountBadge">0</span>
         </button>
       </nav>
 
-      <div class="sidebar-bottom">
-        <label class="dropzone-mini">
-          <i class="ph ph-file-audio"></i>
-          <div>
-            <strong id="local-upload-title">Analizar MP3 locales</strong>
-            <span id="local-upload-sub">Detectar BPM y Tono real (DSP)</span>
+      <div class="rail-footer">
+        <div class="xfade-box">
+          <div class="xfade-top">
+            <span class="xfade-label">CROSSFADE</span>
+            <span class="xfade-time" id="crossfadeLabel">6.0s</span>
           </div>
-          <input type="file" id="local-audio-input" accept="audio/*" multiple hidden>
-        </label>
+          <input type="range" id="crossfadeSlider" min="0" max="12" step="1" value="6" class="xfade-range" />
+          <div class="xfade-ticks">
+            <span>CUT</span>
+            <span>6s</span>
+            <span>12s</span>
+          </div>
+        </div>
       </div>
     </aside>
 
-    <!-- MAIN -->
-    <main class="main-area">
-      <!-- HEADER -->
-      <header class="header">
-        <div class="search-field">
-          <i class="ph ph-magnifying-glass"></i>
-          <input type="text" id="global-filter" placeholder="Filtrar tu Biblioteca por título, artista, género, tono (ej. 8A) o BPM...">
+    <!-- PANEL CENTRAL -->
+    <main class="stage" id="mainScrollArea">
+      <!-- BARRA SUPERIOR DE COMANDOS -->
+      <header class="command-bar">
+        <div class="filter-box">
+          <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="7"/>
+            <path d="M20 20l-3.5-3.5"/>
+          </svg>
+          <input
+            type="search"
+            id="globalFilterInput"
+            placeholder="Filtrar por pista, artista, BPM o clave (ej. 8A, Trap, 124)..."
+            autocomplete="off"
+          />
+          <button id="clearSearchBtn" class="filter-clear hidden" aria-label="Limpiar">&times;</button>
+          <kbd class="filter-shortcut">Ctrl K</kbd>
         </div>
 
-        <div class="header-tools">
-          <button type="button" class="tap-widget" id="tap-tempo-btn">
-            <span class="tap-dot"></span>
-            <span>TAP</span>
-            <strong id="tap-bpm-readout">--</strong>
-          </button>
-
-          <button type="button" class="btn-secondary" id="btn-export-m3u">
-            <i class="ph ph-download-simple"></i>
-            <span>Exportar .M3U</span>
-          </button>
+        <div class="command-actions">
+          <label for="localFileInput" class="action-pill">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            <span>Analizar audio local</span>
+          </label>
+          <input type="file" id="localFileInput" accept="audio/*" multiple hidden />
         </div>
       </header>
 
-      <!-- VISTA 1: IMPORTAR Y DESCARGAR -->
-      <section id="view-ingest" class="view active">
-        <div class="ingest-panel">
-          <div class="ingest-header">
-            <h1>Importador directo de medios</h1>
-            <p>Ingresa el enlace de una canción o playlist pública completa de YouTube o Spotify para extraer el audio en MP3 y detectar su velocidad y tono.</p>
-          </div>
-
-          <form id="url-form" class="ingest-bar">
-            <div class="input-icon"><i class="ph ph-link-simple"></i></div>
-            <input type="url" id="url-input" placeholder="https://www.youtube.com/watch?v=... o https://open.spotify.com/playlist/..." required autocomplete="off">
-            <button type="submit" class="btn-accent" id="btn-fetch-url">
-              <span>Analizar enlace</span>
-              <i class="ph ph-arrow-right"></i>
+      <!-- =========================================================
+           VISTA 1: IMPORTADOR DIRECTO (HOME)
+           ========================================================= -->
+      <section id="importView" class="view-pane active">
+        <div class="omni-importer">
+          <form id="importForm" class="omni-form" autocomplete="off">
+            <div class="omni-input-group">
+              <span class="omni-protocol">URL</span>
+              <input
+                type="url"
+                id="urlInput"
+                placeholder="Pega un enlace de Spotify o YouTube..."
+                required
+              />
+              <button type="button" id="pasteClipboardBtn" class="omni-paste">
+                Pegar
+              </button>
+            </div>
+            <button type="submit" id="analyzeBtn" class="omni-submit">
+              <span id="analyzeBtnText">Extraer</span>
+              <span class="loader-ring hidden" id="analyzeSpinner"></span>
             </button>
           </form>
+          <div id="importStatusBanner" class="omni-status hidden"></div>
         </div>
 
-        <!-- RESULTADOS DE LA EXTRACCIÓN CON BUSCADOR DE PLAYLIST INTEGRADO -->
-        <div id="extracted-section" class="extracted-wrapper hidden">
-          <div class="toolbar-row">
-            <div class="toolbar-meta">
-              <h2 id="extracted-title">Resultados</h2>
-              <span class="subtitle-badge" id="extracted-count">0 pistas</span>
-            </div>
-
-            <!-- NUEVA BARRA DE BÚSQUEDA EXCLUSIVA PARA LA PLAYLIST IMPORTADA -->
-            <div class="playlist-filter-bar">
-              <i class="ph ph-magnifying-glass"></i>
-              <input type="text" id="playlist-search-input" placeholder="Buscar canción o artista dentro de esta playlist...">
-              <button type="button" id="btn-clear-pl-search" class="clear-mini hidden" title="Limpiar filtro">
-                <i class="ph ph-x"></i>
-              </button>
-            </div>
-
-            <div class="toolbar-actions">
-              <button type="button" class="btn-secondary" id="btn-save-all-crate">
-                <i class="ph ph-plus"></i> Agregar todas a mi Biblioteca
-              </button>
-            </div>
+        <!-- TOOLBAR DE PISTAS CARGADAS -->
+        <div class="crate-toolbar">
+          <div class="crate-info">
+            <h2 class="crate-title" id="currentImportTitle">Bandeja de entrada</h2>
+            <span class="crate-Counter" id="importTrackCount">0</span>
           </div>
 
-          <div id="extracted-grid" class="media-grid"></div>
-        </div>
-      </section>
-
-      <!-- VISTA 2: BIBLIOTECA Y SISTEMA DE ORDENAMIENTO AVANZADO -->
-      <section id="view-crate" class="view">
-        <div class="toolbar-row">
-          <div>
-            <h1>Biblioteca & Orden de Mezcla</h1>
-            <p class="sub-text">Arrastra las filas para ordenar manualmente o usa los algoritmos de ordenamiento musical.</p>
-          </div>
-
-          <div class="sorting-bar">
-            <div class="sort-segmented" id="sort-buttons-group">
-              <button type="button" class="seg-btn" data-sort="bpm-asc" title="De menor a mayor velocidad">
-                BPM <i class="ph ph-arrow-up"></i>
-              </button>
-              <button type="button" class="seg-btn" data-sort="bpm-desc" title="De mayor a menor velocidad">
-                BPM <i class="ph ph-arrow-down"></i>
-              </button>
-              <button type="button" class="seg-btn" data-sort="genre">
-                Género
-              </button>
-              <button type="button" class="seg-btn" data-sort="harmonic">
-                Tono Camelot
-              </button>
-              <button type="button" class="seg-btn highlight" data-sort="smart-mix">
-                <i class="ph-fill ph-lightning"></i> Mejor Mezcla
-              </button>
-            </div>
-
-            <div class="bpm-range-box">
-              <span>Rango BPM:</span>
-              <input type="number" id="filter-bpm-min" placeholder="Min" min="50" max="220">
-              <span>—</span>
-              <input type="number" id="filter-bpm-max" placeholder="Max" min="50" max="220">
-            </div>
-          </div>
-        </div>
-
-        <div class="filter-tags" id="genre-tags-bar"></div>
-
-        <div class="crate-table-wrap">
-          <table class="crate-table">
-            <thead>
-              <tr>
-                <th width="42">#</th>
-                <th>PISTA</th>
-                <th>GÉNERO</th>
-                <th width="130">BPM</th>
-                <th width="100">TONO</th>
-                <th>COMPATIBILIDAD SIGUIENTE</th>
-                <th width="190" style="text-align:right;">ACCIONES</th>
-              </tr>
-            </thead>
-            <tbody id="crate-tbody"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- VISTA 3: CURADOR IA & FLUJO DE ENERGÍA -->
-      <section id="view-curator" class="view">
-        <div class="toolbar-row">
-          <div>
-            <h1>Curación por Bloques & Hoja de Ruta</h1>
-            <p class="sub-text">Clasificación automática de tu biblioteca por etapas del set y sugerencias técnicas de transición.</p>
-          </div>
-          <div class="toolbar-actions">
-            <select id="curator-style-select" class="clean-select">
-              <option value="progressive">Curva Progresiva (Warm-Up → Clímax)</option>
-              <option value="peak">Energía Alta Constante (Peak Time)</option>
-              <option value="urban-club">Puente Urbano a Electrónica</option>
-            </select>
-            <button type="button" class="btn-accent" id="btn-apply-smart-order">
-              <i class="ph ph-check"></i> Aplicar este orden a mi Biblioteca
+          <div class="crate-buttons">
+            <button class="tool-btn" id="saveAllToLibBtn" disabled>
+              Guardar en Colección
+            </button>
+            <button class="tool-btn" id="sendAllToMixBtn" disabled>
+              Enviar a Automix
+            </button>
+            <button class="tool-btn primary" id="downloadBatchBtn" disabled>
+              Descargar todo (.MP3)
             </button>
           </div>
         </div>
 
-        <div class="stages-grid" id="curator-stages"></div>
-
-        <div class="transitions-panel">
-          <h3>Guía técnica de mezcla pista por pista</h3>
-          <div id="curator-steps" class="steps-list"></div>
+        <!-- CABECERA DE TABLA -->
+        <div class="track-table-head">
+          <span>#</span>
+          <span>PISTA</span>
+          <span class="col-genre">GÉNERO</span>
+          <span class="col-bpm">TEMPO</span>
+          <span class="col-key">KEY</span>
+          <span class="col-right">ACCIONES</span>
         </div>
+
+        <div id="importedTracksContainer" class="track-table-body"></div>
       </section>
 
-      <!-- VISTA 4: UTILIDADES DE CABINA -->
-      <section id="view-studio" class="view">
-        <div class="toolbar-row">
-          <div>
-            <h1>Utilidades de Cabina & Estudio</h1>
-            <p class="sub-text">Herramientas de cálculo y procesamiento en tiempo real para preparación de sets.</p>
-          </div>
-        </div>
-
-        <div class="studio-grid">
-          <div class="studio-card">
-            <div class="sc-header">
-              <span>01</span>
-              <h3>Calculadora de Pitch Exacto</h3>
-            </div>
-            <p class="sc-desc">Porcentaje necesario en el fader de tempo para empatar dos canciones.</p>
-            <div class="calc-row">
-              <div class="field-col">
-                <label>BPM Saliente</label>
-                <input type="number" id="pitch-from" value="100" min="50" max="200">
-              </div>
-              <div class="field-col">
-                <label>BPM Entrante</label>
-                <input type="number" id="pitch-to" value="104" min="50" max="200">
-              </div>
-            </div>
-            <div class="sc-readout" id="pitch-output">+4.00%</div>
+      <!-- =========================================================
+           VISTA 2: COLECCIÓN / BIBLIOTECA
+           ========================================================= -->
+      <section id="libraryView" class="view-pane">
+        <div class="crate-toolbar">
+          <div class="crate-info">
+            <h2 class="crate-title">Colección</h2>
           </div>
 
-          <div class="studio-card">
-            <div class="sc-header">
-              <span>02</span>
-              <h3>Matriz de Tonalidad Camelot</h3>
-            </div>
-            <p class="sc-desc">Combinaciones armónicas sin choque melódico para el tono seleccionado.</p>
-            <select id="camelot-picker" class="clean-select full">
-              <option value="8A">8A — La Menor (A Minor)</option>
-              <option value="8B">8B — Do Mayor (C Major)</option>
-              <option value="9A">9A — Mi Menor (E Minor)</option>
-              <option value="7A">7A — Re Menor (D Minor)</option>
-              <option value="6A">6A — Sol Menor (G Minor)</option>
-              <option value="5A">5A — Do Menor (C Minor)</option>
-              <option value="10B">10B — Re Mayor (D Major)</option>
-              <option value="11A">11A — Fa# Menor (F# Minor)</option>
+          <div class="crate-buttons">
+            <button class="tool-btn harmonic-toggle" id="harmonicMatchToggleBtn">
+              <span class="status-led"></span>
+              <span>Filtro Armónico</span>
+            </button>
+
+            <select id="genreFilterSelect" class="tool-select">
+              <option value="ALL">Todos los géneros</option>
             </select>
-            <div id="camelot-matches" class="harmony-grid"></div>
-          </div>
 
-          <div class="studio-card">
-            <div class="sc-header">
-              <span>03</span>
-              <h3>Isolator EQ de 3 Bandas (Master)</h3>
-            </div>
-            <p class="sc-desc">Actúa en tiempo real sobre el reproductor inferior para probar cortes de graves o voz.</p>
-            <div class="eq-sliders">
-              <div class="eq-row">
-                <span>LOW</span>
-                <input type="range" id="eq-low" min="-28" max="9" value="0">
-                <code id="eq-low-lbl">0 dB</code>
-              </div>
-              <div class="eq-row">
-                <span>MID</span>
-                <input type="range" id="eq-mid" min="-28" max="9" value="0">
-                <code id="eq-mid-lbl">0 dB</code>
-              </div>
-              <div class="eq-row">
-                <span>HIGH</span>
-                <input type="range" id="eq-high" min="-28" max="9" value="0">
-                <code id="eq-high-lbl">0 dB</code>
-              </div>
-            </div>
-            <button type="button" class="btn-secondary full" id="btn-eq-flat">Restaurar (0 dB)</button>
-          </div>
+            <select id="sortLibrarySelect" class="tool-select">
+              <option value="recent">Recientes</option>
+              <option value="bpm-asc">BPM ↑</option>
+              <option value="bpm-desc">BPM ↓</option>
+              <option value="key">Camelot Key</option>
+              <option value="title">A - Z</option>
+            </select>
 
-          <div class="studio-card">
-            <div class="sc-header">
-              <span>04</span>
-              <h3>Tiempos de Compás & Delay</h3>
-            </div>
-            <p class="sc-desc">Duración exacta de los bloques de mezcla según el BPM activo.</p>
-            <div id="timing-grid" class="harmony-grid"></div>
-          </div>
-
-          <div class="studio-card">
-            <div class="sc-header">
-              <span>05</span>
-              <h3>Generador de Efectos de Cabina</h3>
-            </div>
-            <p class="sc-desc">Disparadores sintetizados por Web Audio API para apoyar cortes de ritmo.</p>
-            <div class="pad-matrix">
-              <button type="button" class="fx-pad" data-fx="riser">Noise Riser</button>
-              <button type="button" class="fx-pad" data-fx="sub">Sub Drop</button>
-              <button type="button" class="fx-pad" data-fx="siren">Dub Siren</button>
-              <button type="button" class="fx-pad" data-fx="laser">Synth Hit</button>
-            </div>
-          </div>
-
-          <div class="studio-card">
-            <div class="sc-header">
-              <span>06</span>
-              <h3>Exportación de Metadatos DJ</h3>
-            </div>
-            <p class="sc-desc">Descarga la estructura de tu lista con BPM y llaves armónicas.</p>
-            <div class="pad-matrix">
-              <button type="button" class="btn-secondary" id="btn-export-csv">Exportar CSV</button>
-              <button type="button" class="btn-secondary" id="btn-export-xml">Rekordbox XML</button>
-            </div>
+            <button class="tool-btn danger" id="clearLibraryBtn">
+              Vaciar
+            </button>
           </div>
         </div>
+
+        <div class="track-table-head">
+          <span>#</span>
+          <span>PISTA</span>
+          <span class="col-genre">GÉNERO</span>
+          <span class="col-bpm">TEMPO</span>
+          <span class="col-key">KEY</span>
+          <span class="col-right">ACCIONES</span>
+        </div>
+
+        <div id="libraryTracksContainer" class="track-table-body"></div>
+      </section>
+
+      <!-- =========================================================
+           VISTA 3: AUTOMIX & TRANSICIONES
+           ========================================================= -->
+      <section id="mixView" class="view-pane">
+        <!-- CONSOLA VISUAL DE CROSSFADE -->
+        <div class="mix-bridge-console">
+          <div class="mix-slot" id="deckCardA">
+            <div class="slot-header">
+              <span class="slot-badge">DECK A • ACTIVO</span>
+              <span class="slot-metrics" id="deckAMetrics">-- BPM • --</span>
+            </div>
+            <div class="slot-title" id="deckATitle">Sin reproducción</div>
+            <div class="slot-artist" id="deckAMeta">Selecciona cualquier pista para iniciar el motor</div>
+          </div>
+
+          <div class="mix-curve-center">
+            <div class="match-pill" id="bridgeCompatibilityBadge">STANDBY</div>
+            <svg class="xfade-svg" viewBox="0 0 180 48" preserveAspectRatio="none">
+              <path d="M 0 8 C 70 8, 110 40, 180 40" stroke="rgba(16, 185, 129, 0.55)" stroke-width="2" fill="none"/>
+              <path d="M 0 40 C 70 40, 110 8, 180 8" stroke="rgba(6, 182, 212, 0.55)" stroke-width="2" fill="none"/>
+            </svg>
+            <div class="xfade-progress-track">
+              <div class="xfade-progress-bar" id="bridgeProgressFill"></div>
+            </div>
+          </div>
+
+          <div class="mix-slot" id="deckCardB">
+            <div class="slot-header">
+              <span class="slot-badge cyan">DECK B • SIGUIENTE</span>
+              <span class="slot-metrics" id="deckBMetrics">-- BPM • --</span>
+            </div>
+            <div class="slot-title" id="deckBTitle">En espera</div>
+            <div class="slot-artist" id="deckBMeta">Agrega canciones a la secuencia</div>
+          </div>
+        </div>
+
+        <div class="crate-toolbar">
+          <div class="crate-info">
+            <h2 class="crate-title">Secuencia de Mezcla</h2>
+          </div>
+
+          <div class="crate-buttons">
+            <button class="tool-btn primary" id="smartSortQueueBtn">
+              Auto-Ordenar por Armonía (Camelot + BPM)
+            </button>
+            <button class="tool-btn" id="clearQueueBtn">
+              Limpiar secuencia
+            </button>
+          </div>
+        </div>
+
+        <div class="track-table-head">
+          <span>#</span>
+          <span>PISTA</span>
+          <span class="col-genre">GÉNERO</span>
+          <span class="col-bpm">TEMPO</span>
+          <span class="col-key">KEY</span>
+          <span class="col-right">ACCIONES</span>
+        </div>
+
+        <div id="mixQueueContainer" class="track-table-body"></div>
       </section>
     </main>
-
-    <!-- REPRODUCTOR INFERIOR -->
-    <footer class="transport-bar">
-      <audio id="audio-player" crossorigin="anonymous"></audio>
-
-      <div class="now-playing">
-        <img id="np-cover" class="np-cover" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&auto=format&fit=crop&q=80" alt="Portada">
-        <div class="np-text">
-          <div class="np-title" id="np-title">Sin reproducción activa</div>
-          <div class="np-artist" id="np-artist">Haz clic en el botón Play de cualquier canción para escucharla</div>
-        </div>
-      </div>
-
-      <div class="transport-center">
-        <div class="transport-buttons">
-          <button type="button" class="ctrl-btn" id="btn-prev-track" title="Anterior"><i class="ph-fill ph-skip-back"></i></button>
-          <button type="button" class="ctrl-play" id="btn-toggle-play" title="Play / Pausa">
-            <i class="ph-fill ph-play" id="icon-play-state"></i>
-          </button>
-          <button type="button" class="ctrl-btn" id="btn-next-track" title="Siguiente"><i class="ph-fill ph-skip-forward"></i></button>
-        </div>
-        <div class="scrub-bar">
-          <span id="time-cur">0:00</span>
-          <input type="range" id="scrub-input" min="0" max="100" value="0">
-          <span id="time-dur">0:00</span>
-        </div>
-      </div>
-
-      <div class="transport-right">
-        <div class="meta-chip">
-          <span>BPM</span>
-          <strong id="np-bpm">--</strong>
-        </div>
-        <div class="meta-chip">
-          <span>KEY</span>
-          <strong id="np-key">--</strong>
-        </div>
-        <div class="volume-box">
-          <i class="ph ph-speaker-high"></i>
-          <input type="range" id="vol-input" min="0" max="1" step="0.02" value="0.9">
-        </div>
-      </div>
-    </footer>
   </div>
 
-  <div id="toast-stack" class="toast-stack"></div>
+  <!-- BARRA DE TRANSPORTE INFERIOR -->
+  <footer class="transport-bar">
+    <div class="transport-now">
+      <div class="transport-art-wrap">
+        <img
+          id="playerCover"
+          src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%2314161f'/%3E%3C/svg%3E"
+          alt=""
+          class="transport-art"
+        />
+      </div>
+      <div class="transport-meta">
+        <div class="transport-title" id="playerTitle">Sin pista activa</div>
+        <div class="transport-sub">
+          <span id="playerArtist">—</span>
+          <span class="transport-tags" id="playerBadges"></span>
+        </div>
+      </div>
+    </div>
 
+    <div class="transport-center">
+      <div class="transport-Buttons">
+        <button class="t-btn" id="prevTrackBtn" title="Anterior">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor">
+            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+          </svg>
+        </button>
+
+        <button class="t-play" id="playPauseBtn" title="Reproducir / Pausar (Espacio)">
+          <svg id="playIconSvg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <polygon points="6 4 20 12 6 20 6 4"/>
+          </svg>
+        </button>
+
+        <button class="t-btn" id="nextTrackBtn" title="Transición inmediata">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor">
+            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="transport-scrubber">
+        <span class="t-time" id="currentTimeLabel">0:00</span>
+        <input type="range" id="seekSlider" min="0" max="100" value="0" step="0.1" class="scrubber-input" />
+        <span class="t-time" id="totalTimeLabel">0:00</span>
+      </div>
+    </div>
+
+    <div class="transport-right">
+      <span class="xfade-indicator" id="automixStatePill">XFADE 6s</span>
+      <div class="vol-box">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>
+        <input type="range" id="volumeSlider" min="0" max="1" step="0.02" value="0.9" class="vol-input" />
+      </div>
+      <button class="tool-btn primary" id="downloadCurrentBtn" disabled>
+        MP3
+      </button>
+    </div>
+  </footer>
+
+  <div id="toastContainer" class="toast-stack"></div>
   <script src="app.js"></script>
 </body>
 </html>
