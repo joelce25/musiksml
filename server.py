@@ -65,13 +65,11 @@ def get_track_lock(key: str) -> threading.Lock:
 COOKIE_INITIALIZED = False
 
 def get_ydl_base_opts() -> dict:
-    """Usa el generador local de PO Token (puerto 4416) en Railway + cookies opcionales."""
+    """Configuración para Railway usando cookies de navegador y cliente web estándar."""
     global COOKIE_INITIALIZED
     raw_cookies = os.getenv("YOUTUBE_COOKIES", "").strip()
     cookie_file = Path("/tmp/youtube_cookies.txt") if os.name != "nt" else Path("cookies_runtime.txt")
 
-    # Solo escribimos el archivo de cookies la primera vez que arranca el servidor
-    # para permitir que yt-dlp actualice el token SIDCC en cada descarga sin pisarlo.
     if raw_cookies and not COOKIE_INITIALIZED:
         try:
             if not raw_cookies.startswith("#"):
@@ -81,28 +79,28 @@ def get_ydl_base_opts() -> dict:
                 cookie_file.write_text(formatted, encoding="utf-8")
             COOKIE_INITIALIZED = True
         except Exception as e:
-            print(f"Aviso cookies: {e}")
+            print(f"Error procesando cookies: {e}")
 
     opts = {
         "quiet": True,
         "no_warnings": True,
         "nocheckcertificate": True,
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["web", "mweb", "tv"]
-            },
-            "youtubepot-bgutilhttp": {
-                "base_url": ["http://127.0.0.1:4416"]
-            }
-        },
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
         }
     }
 
     if cookie_file.exists() and cookie_file.stat().st_size > 100:
         opts["cookiefile"] = str(cookie_file)
+        # Al tener cookies de navegador web, dejamos que yt-dlp use el cliente web estándar
+    else:
+        # Fallback sin cookies
+        opts["extractor_args"] = {
+            "youtube": {
+                "player_client": ["android", "ios"]
+            }
+        }
 
     return opts
 
