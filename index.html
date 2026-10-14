@@ -7,6 +7,24 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <meta name="theme-color" content="#f6f5f1" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Apply the saved appearance before painting, including when storage is unavailable.
+      (() => {
+        let theme;
+        try {
+          theme = localStorage.getItem("musiksml_theme");
+        } catch {}
+        if (theme !== "light" && theme !== "dark") {
+          theme = matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+        }
+        document.documentElement.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]').content =
+          theme === "dark" ? "#171916" : "#f6f5f1";
+      })();
+    </script>
     <meta
       name="description"
       content="Tu música, a tu manera. Importa tus playlists, organiza tu biblioteca y crea una mezcla continua con musiksml."
@@ -50,10 +68,46 @@
           Estudio <span class="nav-count" id="queueCountBadge">0</span>
         </button>
       </nav>
-      <button class="upload-button" id="uploadTopBtn">
-        <span aria-hidden="true">＋</span
-        ><span class="upload-label">Añadir audio</span>
-      </button>
+      <div class="header-tools">
+        <div class="theme-switch" role="group" aria-label="Apariencia">
+          <button
+            id="lightThemeBtn"
+            type="button"
+            aria-label="Tema claro"
+            aria-pressed="true"
+            title="Tema claro"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" />
+              <path
+                d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
+              />
+            </svg>
+            <span class="theme-label">Claro</span>
+          </button>
+          <button
+            id="darkThemeBtn"
+            type="button"
+            aria-label="Tema oscuro"
+            aria-pressed="false"
+            title="Tema oscuro"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20.4 14A8.7 8.7 0 0 1 10 3.6 8.8 8.8 0 1 0 20.4 14Z" />
+            </svg>
+            <span class="theme-label">Oscuro</span>
+          </button>
+        </div>
+        <button
+          class="upload-button"
+          id="uploadTopBtn"
+          aria-label="Añadir archivos de audio"
+          title="Añadir archivos de audio"
+        >
+          <span aria-hidden="true">＋</span
+          ><span class="upload-label">Añadir audio</span>
+        </button>
+      </div>
       <input type="file" id="localFileInput" accept="audio/*" multiple hidden />
     </header>
 
@@ -282,7 +336,7 @@
           <div>
             <span class="eyebrow">02 / TU COLECCIÓN</span>
             <h1 id="libraryTitle">
-              Siempre vuelves<br /><span>a una buena canción.</span>
+              Tu biblioteca.<br /><span>Tu música, a mano.</span>
             </h1>
             <p id="librarySummary">Tu música, guardada en este navegador.</p>
           </div>

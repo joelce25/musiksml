@@ -24,6 +24,7 @@ const state = {
 };
 const localURLs = new Map();
 const sessionFiles = new Map();
+const downloadingTracks = new Set();
 let storageWarning = false;
 let exportJob = null;
 let exportWorker = null;
@@ -34,6 +35,69 @@ function toast(message) {
   el.textContent = message;
   $("toastContainer").replaceChildren(el);
   setTimeout(() => el.remove(), 4800);
+}
+function initializeTheme() {
+  const system = matchMedia("(prefers-color-scheme: dark)");
+  let preference = null;
+  try {
+    preference = localStorage.getItem("musiksml_theme");
+  } catch {}
+  if (!["light", "dark"].includes(preference)) preference = null;
+  const apply = (theme) => {
+    document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="theme-color"]').content =
+      theme === "dark" ? "#171916" : "#f6f5f1";
+    $("lightThemeBtn").setAttribute("aria-pressed", String(theme === "light"));
+    $("darkThemeBtn").setAttribute("aria-pressed", String(theme === "dark"));
+  };
+  for (const [id, theme] of [
+    ["lightThemeBtn", "light"],
+    ["darkThemeBtn", "dark"],
+  ]) {
+    $(id).onclick = () => {
+      preference = theme;
+      apply(theme);
+      try {
+        localStorage.setItem("musiksml_theme", theme);
+      } catch {
+        toast(
+          "Tema cambiado. El navegador no permitió guardar la preferencia para la próxima visita.",
+        );
+      }
+    };
+  }
+  system.addEventListener("change", () => {
+    if (!preference) apply(system.matches ? "dark" : "light");
+  });
+  window.addEventListener("storage", (event) => {
+    if (event.key === "musiksml_theme" || event.key === null) {
+      preference = ["light", "dark"].includes(event.newValue)
+        ? event.newValue
+        : null;
+      apply(preference || (system.matches ? "dark" : "light"));
+    }
+  });
+  apply(preference || (system.matches ? "dark" : "light"));
+}
+function downloadButton(track) {
+  const busy = downloadingTracks.has(track.id);
+  return `<button class="small-button download-track" aria-label="Descargar ${escapeHTML(track.title)}" aria-busy="${busy}" ${busy ? "disabled" : ""}>
+    <svg class="download-icon ${busy ? "hidden" : ""}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4"/></svg>
+    <span class="download-spinner ${busy ? "" : "hidden"}" aria-hidden="true"></span><span class="download-label">${busy ? "Preparando…" : "Descargar"}</span></button>`;
+}
+function updateDownloadButtons(id, busy) {
+  document.querySelectorAll(".track-row").forEach((row) => {
+    if (row.dataset.trackId !== id) return;
+    const button = row.querySelector(".download-track");
+    if (!button) return;
+    button.disabled = busy;
+    button.setAttribute("aria-busy", String(busy));
+    button.querySelector(".download-label").textContent = busy
+      ? "Preparando…"
+      : "Descargar";
+    button.querySelector(".download-icon").classList.toggle("hidden", busy);
+    button.querySelector(".download-spinner").classList.toggle("hidden", !busy);
+  });
 }
 function escapeHTML(value) {
   return String(value ?? "").replace(
@@ -355,19 +419,18 @@ function renderTrack(track, context, index) {
   row.innerHTML = `<button class="track-play" aria-label="Reproducir ${title}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7Z"/></svg></button>
     <div class="track-art tone-${index % 5}" aria-hidden="true"></div>
     <div class="track-main"><strong class="track-title" title="${title}">${title}</strong><div class="track-artist">${escapeHTML(track.artist)}</div></div>
-    <div class="track-metrics" title="${track.isRealAudioAnalyzed ? "Audio analizado" : "Tempo y tonalidad orientativos"}"><span>${track.bpm ? Math.round(track.bpm) : "—"} BPM</span><span class="track-key">${escapeHTML(track.key || "—")}</span></div>
-    <div class="track-actions">${context === "queue" ? `<div class="queue-order"><button class="move-up" aria-label="Subir ${title}" ${index === 0 ? "disabled" : ""}>↑</button><button class="move-down" aria-label="Bajar ${title}" ${index === state.queue.length - 1 ? "disabled" : ""}>↓</button></div><button class="icon-button remove-track" aria-label="Quitar ${title} de la sesión">×</button>` : `<button class="icon-button favorite ${isFavorite ? "is-favorite" : ""}" aria-label="${isFavorite ? "Quitar" : "Añadir"} ${title} ${isFavorite ? "de" : "a"} favoritas" aria-pressed="${isFavorite}">${isFavorite ? "♥" : "♡"}</button><button class="small-button add-mix ${inQueue ? "added" : ""}" ${inQueue ? "disabled" : ""}>${inQueue ? "En mix ✓" : "＋ Mix"}</button><button class="small-button download-track" aria-label="Descargar ${title}">↓</button>`}</div>`;
+    <div class="track-metrics" title="${track.isRealAudioAnalyzed ? "Audio analizado" : "Tempo y tonalidad orientativos"}"><span>${track.bpm ? Math.round(track.bpm) : "—"} BPM</span><span class="track-key">${escapeHTML(track.key || "—")}</span><span class="track-duration">${track.duration ? seconds(track.duration) : "—:—"}</span></div>
+    <div class="track-actions">${context === "queue" ? `<div class="queue-order"><button class="move-up" aria-label="Subir ${title}" ${index === 0 ? "disabled" : ""}>↑</button><button class="move-down" aria-label="Bajar ${title}" ${index === state.queue.length - 1 ? "disabled" : ""}>↓</button></div><button class="icon-button remove-track" aria-label="Quitar ${title} de la sesión">×</button>${downloadButton(track)}` : `<button class="icon-button favorite ${isFavorite ? "is-favorite" : ""}" aria-label="${isFavorite ? "Quitar" : "Añadir"} ${title} ${isFavorite ? "de" : "a"} favoritas" aria-pressed="${isFavorite}">${isFavorite ? "♥" : "♡"}</button><button class="small-button add-mix ${inQueue ? "added" : ""}" ${inQueue ? "disabled" : ""}>${inQueue ? "En mix ✓" : "＋ Mix"}</button>${downloadButton(track)}`}</div>`;
   imageArt(row.querySelector(".track-art"), track);
   row.querySelector(".track-play").onclick = () =>
     engine.playFrom(track, context);
+  row.querySelector(".download-track").onclick = () => downloadTrack(track);
   if (context !== "queue") {
     row.querySelector(".favorite").onclick = () => favorite(track);
     row.querySelector(".add-mix").onclick = () => {
       addToQueue([track]);
       toast("Canción añadida a tu sesión.");
     };
-    row.querySelector(".download-track").onclick = (e) =>
-      downloadTrack(track, e.currentTarget);
   } else {
     row.querySelector(".remove-track").onclick = () => {
       state.queue.splice(index, 1);
@@ -1237,8 +1300,10 @@ function safeFilename(name) {
       .slice(0, 150) || "musiksml"
   );
 }
-async function downloadTrack(track, button) {
-  if (button) button.disabled = true;
+async function downloadTrack(track) {
+  if (downloadingTracks.has(track.id)) return false;
+  downloadingTracks.add(track.id);
+  updateDownloadButtons(track.id, true);
   try {
     let blob, extension;
     if (track.localId) {
@@ -1267,7 +1332,8 @@ async function downloadTrack(track, button) {
     toast(error.message);
     return false;
   } finally {
-    if (button) button.disabled = false;
+    downloadingTracks.delete(track.id);
+    updateDownloadButtons(track.id, false);
   }
 }
 
@@ -1712,6 +1778,7 @@ async function importLocal(event) {
 }
 
 function initializeUI() {
+  initializeTheme();
   loadState();
   syncSettings();
   render();

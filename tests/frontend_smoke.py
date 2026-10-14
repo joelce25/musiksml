@@ -134,6 +134,30 @@ with sync_playwright() as p:
 
     page.route("**/api/**", route_api)
     page.goto(BASE + "/", wait_until="networkidle")
+    # Follow system appearance until the user explicitly chooses a theme.
+    page.emulate_media(color_scheme="dark")
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+    expect(page.locator("#darkThemeBtn")).to_have_attribute("aria-pressed", "true")
+    page.locator("#lightThemeBtn").click()
+    page.emulate_media(color_scheme="light")
+    page.emulate_media(color_scheme="dark")
+    expect(page.locator("html")).to_have_attribute("data-theme", "light")
+    page.locator("#darkThemeBtn").click()
+    page.reload(wait_until="networkidle")
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+    assert (
+        page.locator('meta[name="theme-color"]').get_attribute("content") == "#171916"
+    )
+    other = context.new_page()
+    other.goto(BASE + "/", wait_until="networkidle")
+    expect(other.locator("html")).to_have_attribute("data-theme", "dark")
+    page.locator("#lightThemeBtn").click()
+    expect(other.locator("html")).to_have_attribute("data-theme", "light")
+    other.close()
+    print(
+        "PASS system appearance, explicit theme choice, reload and cross-tab synchronization",
+        flush=True,
+    )
     page.get_by_role("button", name="Traer mi música").click()
     page.locator("#urlInput").fill("https://www.youtube.com/playlist?list=test-music")
     page.get_by_role("button", name="Importar música", exact=True).click()
@@ -141,6 +165,50 @@ with sync_playwright() as p:
     expect(page.locator("#importedTracksContainer .track-row")).to_have_count(3)
     page.get_by_role("button", name="Biblioteca 3", exact=True).click()
     expect(page.locator(".playlist-tile h3")).to_have_text("Tardes sin prisa")
+    # The download action remains visible on a phone, including while loading.
+    page.set_viewport_size({"width": 390, "height": 844})
+    pending_downloads = []
+    page.route("**/api/media*", lambda route: pending_downloads.append(route))
+    button = page.locator("#libraryTracksContainer .download-track").first
+    expect(button).to_be_visible()
+    assert button.bounding_box()["height"] >= 44
+    button.click()
+    expect(button).to_have_attribute("aria-busy", "true")
+    expect(button).to_be_disabled()
+    page.wait_for_timeout(100)
+    assert len(pending_downloads) == 1
+    # Re-rendering a different view must preserve the pending state for that song.
+    page.locator('.nav-link[data-view="importView"]').click()
+    busy = page.locator('#importedTracksContainer .download-track[aria-busy="true"]')
+    expect(busy).to_have_count(1)
+    expect(busy).to_be_disabled()
+    busy.evaluate("el => el.click()")
+    assert len(pending_downloads) == 1
+    with page.expect_download() as individual_download:
+        pending_downloads[0].fulfill(body=fixtures["0"], content_type="audio/mpeg")
+    assert individual_download.value.suggested_filename.endswith(".mp3")
+    expect(busy).to_have_count(0)
+    page.unroute("**/api/media*")
+    # A failed download restores the control and shows a useful error.
+    page.route(
+        "**/api/media*",
+        lambda route: route.fulfill(
+            status=503, json={"detail": "Descarga de prueba no disponible"}
+        ),
+    )
+    page.locator("#importedTracksContainer .download-track").first.click()
+    expect(page.locator("#toastContainer")).to_contain_text(
+        "Descarga de prueba no disponible"
+    )
+    expect(
+        page.locator("#importedTracksContainer .download-track").first
+    ).to_be_enabled()
+    page.unroute("**/api/media*")
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    print(
+        "PASS mobile download, loading state across views, duplicate protection and error recovery",
+        flush=True,
+    )
     page.get_by_role("button", name="Importar", exact=True).click()
     expect(page.locator("#currentImportTitle")).to_have_text("Tardes sin prisa")
     page.reload(wait_until="networkidle")
@@ -295,20 +363,47 @@ with sync_playwright() as p:
     page.screenshot(
         path=str(ARTIFACTS / "studio.png"), full_page=True, animations="disabled"
     )
-    page.set_viewport_size({"width": 390, "height": 844})
-    for view in ["homeView", "importView", "libraryView", "mixView"]:
-        page.locator(f'.nav-link[data-view="{view}"]').click()
-        page.wait_for_timeout(800)
-        assert not page.evaluate("document.documentElement.scrollWidth>innerWidth"), (
-            view
-        )
-        page.screenshot(
-            path=str(ARTIFACTS / f"mobile-{view}.png"),
-            full_page=True,
-            animations="disabled",
-        )
+    for theme in ["light", "dark"]:
+        page.locator(f"#{theme}ThemeBtn").click()
+        for width in [320, 390, 768, 1440]:
+            page.set_viewport_size({"width": width, "height": 900})
+            for view in ["homeView", "importView", "libraryView", "mixView"]:
+                page.locator(f'.nav-link[data-view="{view}"]').click()
+                assert not page.evaluate(
+                    "document.documentElement.scrollWidth > innerWidth"
+                ), (theme, width, view)
+                if view != "homeView":
+                    root = {
+                        "importView": "importedTracksContainer",
+                        "libraryView": "libraryTracksContainer",
+                        "mixView": "mixQueueContainer",
+                    }[view]
+                    row = page.locator(f"#{root} .track-row").first
+                    expect(row.locator(".download-track")).to_be_visible()
+                    assert row.locator(".download-track").bounding_box()["height"] >= 44
+                    assert row.locator(".track-play").bounding_box()["width"] >= 44
+                    assert (
+                        row.locator(".track-title").evaluate(
+                            "el => parseFloat(getComputedStyle(el).fontSize)"
+                        )
+                        >= 16
+                    )
+                    download_box = row.locator(".download-track").bounding_box()
+                    assert (
+                        download_box["x"] >= 0
+                        and download_box["x"] + download_box["width"] <= width + 1
+                    )
+            if width == 390:
+                page.screenshot(
+                    path=str(ARTIFACTS / f"mobile-{theme}.png"),
+                    full_page=True,
+                    animations="disabled",
+                )
     assert not errors, errors
-    print("PASS populated mobile views and no uncaught JavaScript errors", flush=True)
+    print(
+        "PASS populated light/dark views at 320–1440 px, readable songs, touch targets and no JavaScript errors",
+        flush=True,
+    )
     legacy = browser.new_context()
     legacy.add_init_script(
         "localStorage.setItem('musiksml_clean_library_v3', JSON.stringify([{id:'old-song',title:'Mi canción anterior',artist:'Mi artista',bpm:100,key:'9A'}])); localStorage.setItem('musiksml_library', JSON.stringify([{title:'Backup anterior'}]))"
