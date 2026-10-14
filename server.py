@@ -2,6 +2,7 @@ import os
 import re
 import time
 import json
+import base64
 import shutil
 import tempfile
 import threading
@@ -58,20 +59,29 @@ def get_track_lock(key: str) -> threading.Lock:
         return download_locks[key]
 
 
+# =========================================================
+# PASO 3: LECTOR DE COOKIES EN BASE64 O TEXTO PLANO
+# =========================================================
 def get_ydl_base_opts() -> dict:
-    """Configuración anti-bloqueo con soporte de cookies y clientes compatibles sin error de formato."""
+    """Lee las cookies en formato Base64 o texto desde Railway preservando las tabulaciones."""
     raw_cookies = os.getenv("YOUTUBE_COOKIES", "").strip()
-    cookie_file = Path("/tmp/youtube_cookies.txt") if os.name != "nt" else Path("cookies.txt")
+    cookie_file = Path("/tmp/youtube_cookies.txt") if os.name != "nt" else Path("cookies_runtime.txt")
     has_valid_cookies = False
 
     if raw_cookies:
         try:
-            formatted_cookies = raw_cookies.replace("\\n", "\n")
-            cookie_file.write_text(formatted_cookies, encoding="utf-8")
-            has_valid_cookies = True
+            # Si no empieza con '#', asumimos que viene protegido en Base64
+            if not raw_cookies.startswith("#"):
+                decoded_bytes = base64.b64decode(raw_cookies)
+                cookie_file.write_bytes(decoded_bytes)
+            else:
+                formatted_cookies = raw_cookies.replace("\\n", "\n").replace("\\t", "\t")
+                cookie_file.write_text(formatted_cookies, encoding="utf-8")
+            has_valid_cookies = cookie_file.exists() and cookie_file.stat().st_size > 100
         except Exception as e:
-            print(f"Error escribiendo cookies: {e}")
-    elif cookie_file.exists() and cookie_file.stat().st_size > 100:
+            print(f"Error procesando YOUTUBE_COOKIES: {e}")
+    elif Path("cookies.txt").exists() and Path("cookies.txt").stat().st_size > 100:
+        cookie_file = Path("cookies.txt")
         has_valid_cookies = True
 
     opts = {
@@ -86,11 +96,6 @@ def get_ydl_base_opts() -> dict:
 
     if has_valid_cookies:
         opts["cookiefile"] = str(cookie_file)
-        opts["extractor_args"] = {
-            "youtube": {
-                "player_client": ["tv", "web_creator", "mweb", "web"]
-            }
-        }
     else:
         opts["extractor_args"] = {
             "youtube": {
@@ -99,6 +104,27 @@ def get_ydl_base_opts() -> dict:
         }
 
     return opts
+
+
+# =========================================================
+# PASO 4: RUTA DE DIAGNÓSTICO DE COOKIES
+# =========================================================
+@app.get("/api/debug-cookies")
+def debug_cookies():
+    opts = get_ydl_base_opts()
+    cfile = opts.get("cookiefile")
+    if cfile and Path(cfile).exists():
+        content = Path(cfile).read_text(encoding="utf-8", errors="ignore")
+        lines = [l for l in content.splitlines() if l.strip() and not l.startswith("#")]
+        has_tabs = any("\t" in l for l in lines)
+        has_login = "LOGIN_INFO" in content or "SAPISID" in content
+        return {
+            "cookies_detected": True,
+            "total_cookie_lines": len(lines),
+            "valid_netscape_tabs": has_tabs,
+            "youtube_session_found": has_login
+        }
+    return {"cookies_detected": False}
 
 
 class UrlRequest(BaseModel):
