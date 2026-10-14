@@ -11,3 +11,4 @@ numpy
 python-multipart
 python-dotenv
 playwright
+bgutil-ytdlp-pot-provider

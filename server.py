@@ -62,46 +62,47 @@ def get_track_lock(key: str) -> threading.Lock:
 # =========================================================
 # PASO 3: LECTOR DE COOKIES EN BASE64 O TEXTO PLANO
 # =========================================================
+COOKIE_INITIALIZED = False
+
 def get_ydl_base_opts() -> dict:
-    """Lee las cookies en formato Base64 o texto desde Railway preservando las tabulaciones."""
+    """Usa el generador local de PO Token (puerto 4416) en Railway + cookies opcionales."""
+    global COOKIE_INITIALIZED
     raw_cookies = os.getenv("YOUTUBE_COOKIES", "").strip()
     cookie_file = Path("/tmp/youtube_cookies.txt") if os.name != "nt" else Path("cookies_runtime.txt")
-    has_valid_cookies = False
 
-    if raw_cookies:
+    # Solo escribimos el archivo de cookies la primera vez que arranca el servidor
+    # para permitir que yt-dlp actualice el token SIDCC en cada descarga sin pisarlo.
+    if raw_cookies and not COOKIE_INITIALIZED:
         try:
-            # Si no empieza con '#', asumimos que viene protegido en Base64
             if not raw_cookies.startswith("#"):
-                decoded_bytes = base64.b64decode(raw_cookies)
-                cookie_file.write_bytes(decoded_bytes)
+                cookie_file.write_bytes(base64.b64decode(raw_cookies))
             else:
-                formatted_cookies = raw_cookies.replace("\\n", "\n").replace("\\t", "\t")
-                cookie_file.write_text(formatted_cookies, encoding="utf-8")
-            has_valid_cookies = cookie_file.exists() and cookie_file.stat().st_size > 100
+                formatted = raw_cookies.replace("\\n", "\n").replace("\\t", "\t")
+                cookie_file.write_text(formatted, encoding="utf-8")
+            COOKIE_INITIALIZED = True
         except Exception as e:
-            print(f"Error procesando YOUTUBE_COOKIES: {e}")
-    elif Path("cookies.txt").exists() and Path("cookies.txt").stat().st_size > 100:
-        cookie_file = Path("cookies.txt")
-        has_valid_cookies = True
+            print(f"Aviso cookies: {e}")
 
     opts = {
         "quiet": True,
         "no_warnings": True,
         "nocheckcertificate": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web", "mweb", "tv"]
+            },
+            "youtubepot-bgutilhttp": {
+                "base_url": ["http://127.0.0.1:4416"]
+            }
+        },
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
         }
     }
 
-    if has_valid_cookies:
+    if cookie_file.exists() and cookie_file.stat().st_size > 100:
         opts["cookiefile"] = str(cookie_file)
-    else:
-        opts["extractor_args"] = {
-            "youtube": {
-                "player_client": ["tv", "android_vr", "ios", "mweb"]
-            }
-        }
 
     return opts
 
