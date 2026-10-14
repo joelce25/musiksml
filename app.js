@@ -534,8 +534,11 @@ function renderImported() {
   $("currentImportTitle").textContent = imported.title;
   $("homeImportTitle").textContent = imported.title;
   $("showcaseSourceTag").textContent = imported.source || "TU PLAYLIST";
+  const durationSummary = imported.tracks.every((track) => track.duration > 0)
+    ? seconds(imported.tracks.reduce((sum, track) => sum + track.duration, 0))
+    : "Duración disponible al reproducir";
   $("showcaseStatsRow").textContent =
-    `${imported.tracks.length} canciones · ${seconds(imported.tracks.reduce((s, t) => s + t.duration, 0))}`;
+    `${imported.tracks.length} canciones · ${durationSummary}`;
   const saved = state.playlists.some((p) => p.id === imported.id);
   $("saveAllToLibBtn").textContent = saved
     ? "Actualizar playlist ✓"
